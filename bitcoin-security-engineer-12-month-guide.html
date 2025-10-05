@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bitcoin Security Engineer Learning Roadmap – From Fundamentals to Custody Systems (12 Months)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.7;
+      color: #1f2937;
+      background: #f9fafb;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1, h2, h3 {
+      color: #0f172a;
+    }
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+    }
+    h2 {
+      font-size: 1.8rem;
+      margin-top: 2.5rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    h3 {
+      font-size: 1.4rem;
+      margin-top: 2rem;
+      color: #1e40af;
+    }
+    p, li {
+      font-size: 1.05rem;
+    }
+    ul {
+      margin: 0.5rem 0 1.5rem 1.5rem;
+    }
+    strong {
+      color: #0f172a;
+    }
+    .goal {
+      background: #e0f2fe;
+      padding: 0.8rem 1rem;
+      border-left: 4px solid #0284c7;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+    .resources, .projects {
+      background: #f3f4f6;
+      padding: 0.8rem 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+    .career-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+    }
+    .career-table th, .career-table td {
+      border: 1px solid #d1d5db;
+      padding: 0.8rem;
+      text-align: left;
+    }
+    .career-table th {
+      background: #f3f4f6;
+    }
+    @media (max-width: 600px) {
+      body { padding: 1rem; }
+      h1 { font-size: 1.8rem; }
+      h2 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Bitcoin Security Engineer Learning Roadmap – From Fundamentals to Custody Systems (12 Months)</h1>
+
+  <h2>📅 12-Month Bitcoin Security & Custody Roadmap</h2>
+
+  <h3>📆 Months 1–2 — Bitcoin & Wallet Fundamentals</h3>
+  <div class="goal">
+    🎯 <strong>Goal:</strong> Understand Bitcoin’s core data model and how wallets and policies are constructed.
+  </div>
+
+  <strong>Learn:</strong>
+  <ul>
+    <li>UTXOs, inputs/outputs, and transaction structure</li>
+    <li>ECDSA & Schnorr signatures</li>
+    <li>BIP-32 HD wallets and BIP-39 mnemonics</li>
+    <li>PSBT (BIP-174) and how multi-party signing works</li>
+    <li>Output descriptors and Miniscript policies</li>
+    <li>Time-locks and hash-locks</li>
+  </ul>
+
+  <div class="resources">
+    📚 <strong>Resources:</strong>
+    <ul>
+      <li><a href="https://github.com/bitcoinbook/bitcoinbook">Mastering Bitcoin</a> – Chapters 4–7</li>
+      <li><a href="https://developer.bitcoin.org/devguide/">Bitcoin Dev Guide</a></li>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki">BIP-32</a></li>
+      <li><a href="https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki">BIP-174</a></li>
+      <li><a href="https://bitcoin.sipa.be/miniscript/">Miniscript site</a></li>
+    </ul>
+  </div>
+
+  <div class="projects">
+    🧪 <strong>Projects:</strong>
+    <ul>
+      <li>Manually build and broadcast transactions on regtest.</li>
+      <li>Construct and spend from a 2-of-3 multisig.</li>
+      <li>Create a descriptor with a timelock and test spending conditions.</li>
+    </ul>
+  </div>
+
+  <h3>📆 Months 3–4 — Rust & Bitcoin Libraries</h3>
+  <div class="goal">
+    🎯 <strong>Goal:</strong> Get comfortable building Bitcoin logic in Rust.
+  </div>
+
+  <strong>Learn:</strong>
+  <ul>
+    <li>Rust basics: ownership, borrowing, traits, enums, error handling</li>
+    <li>rust-bitcoin, rust-miniscript, and bdk</li>
+    <li>Programmatic PSBT creation and signing</li>
+    <li>RPC communication with Bitcoin Core</li>
+  </ul>
+
+  <div class="resources">
+    📚 <strong>Resources:</strong>
+    <ul>
+      <li><a href="https://doc.rust-lang.org/book/">The Rust Book</a></li>
+      <li><a href="https://github.com/rust-bitcoin/rust-bitcoin">rust-bitcoin</a></li>
+      <li><a href="https://github.com/rust-bitcoin/rust-miniscript">rust-miniscript</a></li>
+      <li><a href="https://bitcoindevkit.org/">BDK Docs</a></li>
+    </ul>
+  </div>
+
+  <div class="projects">
+    🧪 <strong>Projects:</strong>
+    <ul>
+      <li>CLI tool to generate descriptors and build PSBTs.</li>
+      <li>Sign transactions programmatically in Rust.</li>
+      <li>Build a simple wallet backend on regtest.</li>
+    </ul>
+  </div>
+
+  <h3>📆 Months 5–6 — Secure Key Management & Threat Modelling</h3>
+  <div class="goal">
+    🎯 <strong>Goal:</strong> Learn how private keys are generated, stored, and protected.
+  </div>
+
+  <strong>Learn:</strong>
+  <ul>
+    <li>Entropy and randomness best practices</li>
+    <li>BIP-39 mnemonic → seed → BIP-32 key derivation</li>
+    <li>Key encryption (AES-GCM, libsodium)</li>
+    <li>Threat modelling (STRIDE) and secure design</li>
+    <li>HSM fundamentals and PKCS#11</li>
+    <li>Intro to MPC (GG18, FROST)</li>
+  </ul>
+
+  <div class="resources">
+    📚 <strong>Resources:</strong>
+    <ul>
+      <li><a href="https://research.nccgroup.com/2020/05/11/key-management-cheat-sheet/">NCC Group Key Management Cheat Sheet</a></li>
+      <li><a href="https://docs.aws.amazon.com/cloudhsm/latest/userguide/introduction.html">AWS CloudHSM</a></li>
+      <li><a href="https://docs.oasis-open.org/pkcs11/pkcs11-base/v3.0/pkcs11-base-v3.0.html">PKCS#11 Spec</a></li>
+      <li><a href="https://zengo.com/what-is-mpc/">ZenGo MPC Intro</a></li>
+      <li><a href="https://eprint.iacr.org/2020/852.pdf">FROST paper</a></li>
+    </ul>
+  </div>
+
+  <div class="projects">
+    🧪 <strong>Projects:</strong>
+    <ul>
+      <li>Build a secure key generator that encrypts keys at rest.</li>
+      <li>Implement a simple N-of-M signing service.</li>
+      <li>Enforce policies like time delays or dual approval.</li>
+    </ul>
+  </div>
+
+  <h3>📆 Months 7–8 — HSMs, MPC & Hardware Integration</h3>
+  <div class="goal">
+    🎯 <strong>Goal:</strong> Integrate with real-world secure signing environments.
+  </div>
+
+  <strong>Learn:</strong>
+  <ul>
+    <li>HSM operation and PKCS#11 APIs</li>
+    <li>Cloud key management (AWS KMS, GCP KMS)</li>
+    <li>Secure enclaves (TPM, Nitro Enclave)</li>
+    <li>MPC signing flows and threshold signatures</li>
+  </ul>
+
+  <div class="resources">
+    📚 <strong>Resources:</strong>
+    <ul>
+      <li><a href="https://docs.aws.amazon.com/cloudhsm/latest/userguide/getting-started.html">AWS CloudHSM Tutorials</a></li>
+      <li><a href="https://cloud.google.com/security-key-management">GCP KMS Docs</a></li>
+      <li><a href="https://www.youtube.com/watch?v=GGfHbw_oLGM">Fireblocks MPC Deep Dive</a></li>
+    </ul>
+  </div>
+
+  <div class="projects">
+    🧪 <strong>Projects:</strong>
+    <ul>
+      <li>Build a signing service using an HSM simulator.</li>
+      <li>Simulate MPC by splitting a key across two services that must cooperate to sign.</li>
+    </ul>
+  </div>
+
+  <h3>📆 Months 9–10 — Custody Architecture & Policy Enforcement</h3>
+  <div class="goal">
+    🎯 <strong>Goal:</strong> Build institutional-grade security systems.
+  </div>
+
+  <strong>Learn:</strong>
+  <ul>
+    <li>Custody workflows (withdrawal delays, whitelists, approvals)</li>
+    <li>Policy engines and signing orchestration</li>
+    <li>Tamper-evident audit logging</li>
+    <li>Compliance standards: SOC2, FIPS 140-2/3, MiCA</li>
+  </ul>
+
+  <div class="resources">
+    📚 <strong>Resources:</strong>
+    <ul>
+      <li><a href="https://www.bitgo.com/resources/">BitGo Custody Overview</a></li>
+      <li><a href="https://developers.fireblocks.com/">Fireblocks Developer Docs</a></li>
+      <li><a href="https://anchorage.com/resources">Anchorage Resources</a></li>
+      <li><a href="https://csrc.nist.gov/projects/cryptographic-module-validation-program">FIPS 140-2</a></li>
+      <li><a href="https://socs2.com/">SOC2</a></li>
+    </ul>
+  </div>
+
+  <div class="projects">
+    🧪 <strong>Projects:</strong>
+    <ul>
+      <li>Build a custody backend with multisig, time-delays, whitelists, and approvals.</li>
+      <li>Add tamper-evident logs of all signing attempts.</li>
+    </ul>
+  </div>
+
+  <h3>📆 Months 11–12 — Advanced Topics & Future-Proofing</h3>
+  <div class="goal">
+    🎯 <strong>Goal:</strong> Finish strong with advanced topics and portfolio projects.
+  </div>
+
+  <strong>Learn:</strong>
+  <ul>
+    <li>Post-quantum cryptography basics (Kyber, Dilithium)</li>
+    <li>Hybrid signature approaches (ECDSA + PQC)</li>
+    <li>Custody migration strategies</li>
+    <li>Advanced threat modelling and disaster recovery</li>
+  </ul>
+
+  <div class="resources">
+    📚 <strong>Resources:</strong>
+    <ul>
+      <li><a href="https://csrc.nist.gov/projects/post-quantum-cryptography">NIST Post-Quantum Project</a></li>
+      <li><a href="https://docs.rs/pqcrypto/latest/pqcrypto/">pqcrypto crate</a></li>
+    </ul>
+  </div>
+
+  <div class="projects">
+    🧪 <strong>Final Portfolio Projects:</strong>
+    <ul>
+      <li>🏦 Toy Custody System – policies, approval workflows, secure signing</li>
+      <li>🔐 Secure Key Vault – encrypted BIP-32 key storage with PKCS#11</li>
+      <li>🪙 Policy-Based Signing Daemon – PSBT signing with conditions</li>
+      <li>📜 Audit Tool – descriptor verification and backup validation</li>
+    </ul>
+  </div>
+
+  <h2>🧰 Portfolio & Career Path</h2>
+
+  <p>By month 12, you’ll have:</p>
+  <ul>
+    <li>✅ Deep knowledge of Bitcoin security primitives</li>
+    <li>✅ Rust experience with descriptors, PSBT, and Miniscript</li>
+    <li>✅ Hands-on key management and policy-enforced signing</li>
+    <li>✅ A working custody backend project</li>
+    <li>✅ Knowledge of compliance and threat modelling</li>
+    <li>✅ Awareness of post-quantum challenges</li>
+  </ul>
+
+  <table class="career-table">
+    <tr><th>Role</th><th>Salary Range</th></tr>
+    <tr><td>Bitcoin Security Engineer</td><td>£120k – £160k</td></tr>
+    <tr><td>Custody Backend Engineer</td><td>£140k – £180k</td></tr>
+    <tr><td>Security Architect / Head of Custody</td><td>£180k – £250k+</td></tr>
+  </table>
+
+</body>
+</html>
