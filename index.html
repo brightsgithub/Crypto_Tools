@@ -94,6 +94,127 @@
     .mode-row{display:flex;flex-wrap:wrap;gap:16px;margin:8px 0 0 0;}
     .mode-row label{display:flex;align-items:center;font-size:.95em;color:var(--text-color-dark);gap:6px;}
 
+
+    /* Polished mode picker */
+    .mode-row{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:10px;
+      margin:18px 0 24px;
+      padding:8px;
+      border-radius:18px;
+      background:var(--row-even-color);
+      border:1px solid var(--divider-color);
+    }
+
+    .mode-row label{
+      position:relative;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-height:64px;
+      padding:14px 16px 14px 46px;
+      border-radius:14px;
+      cursor:pointer;
+      color:var(--text-color-dark);
+      background:transparent;
+      transition:transform .16s ease, background .16s ease, box-shadow .16s ease;
+      font-weight:700;
+      line-height:1.25;
+    }
+
+    .mode-row label:hover{
+      background:rgba(247,147,26,.10);
+      transform:translateY(-1px);
+    }
+
+    .mode-row input[type="radio"]{
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+    }
+
+    .mode-row label::before{
+      content:"";
+      position:absolute;
+      left:16px;
+      top:50%;
+      width:18px;
+      height:18px;
+      border-radius:999px;
+      transform:translateY(-50%);
+      border:2px solid var(--text-color-light);
+      background:var(--surface-color);
+      box-sizing:border-box;
+    }
+
+    .mode-row label:has(input[type="radio"]:checked){
+      background:var(--surface-color);
+      box-shadow:0 6px 18px rgba(0,0,0,.12);
+      outline:2px solid rgba(247,147,26,.38);
+    }
+
+    .mode-row label:has(input[type="radio"]:checked)::before{
+      border-color:var(--btc-orange);
+      background:
+        radial-gradient(circle at center, var(--btc-orange) 0 45%, transparent 48%);
+    }
+
+    body.dark-mode .mode-row{
+      background:#0b1726;
+      border-color:#26384f;
+    }
+
+    body.dark-mode .mode-row label:has(input[type="radio"]:checked){
+      background:#15263b;
+      outline-color:rgba(247,147,26,.55);
+    }
+
+
+
+    .mode-row label[data-help]::after{
+      content:attr(data-help);
+      position:absolute;
+      left:50%;
+      bottom:calc(100% + 10px);
+      transform:translateX(-50%);
+      width:280px;
+      max-width:80vw;
+      background:#111827;
+      color:#f9fafb;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #374151;
+      box-shadow:0 8px 24px rgba(0,0,0,.28);
+      white-space:normal;
+      line-height:1.45;
+      font-size:12px;
+      font-weight:500;
+      text-transform:none;
+      letter-spacing:normal;
+      z-index:9999;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .15s ease;
+    }
+
+    .mode-row label[data-help]:hover::after,
+    .mode-row label[data-help]:focus-within::after{
+      opacity:1;
+    }
+
+    .mode-row label:has(input[type="radio"]:checked)::after{
+      content:attr(data-help);
+      right:auto;
+      bottom:calc(100% + 10px);
+      font-size:12px;
+      color:#f9fafb;
+      font-weight:500;
+      text-transform:none;
+      letter-spacing:normal;
+    }
+
+
     .stress-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
     .stress-row .input-group{margin-bottom:0; min-width: 180px;}
 
@@ -433,11 +554,19 @@
 
   <!-- Mode toggles -->
   <div class="input-group">
-    <div class="mode-row">
-      <label><input type="radio" name="mode" value="projection" checked onchange="toggleMode()"> Projection (use growth %)</label>
-      <label><input type="radio" name="mode" value="backtest_api" onchange="toggleMode()"> Backtest with BTC Prices (API)</label>
-      <label><input type="radio" name="mode" value="backtest_file" onchange="toggleMode()"> Backtest with BTC Prices (CSV)</label>
-      <label><input type="radio" name="mode" value="backtest_builtin" onchange="toggleMode()"> Backtest with BTC Prices (Built-in)</label>
+    <div class="mode-row" aria-label="Projection mode">
+      <label data-help="Simulates future Bitcoin prices using your chosen annual BTC growth percentage.">
+        <input type="radio" name="mode" value="projection" checked onchange="toggleMode()"> Growth Projection
+      </label>
+      <label data-help="Fetches historical BTC prices from CoinGecko. If the API fails or is rate-limited, it falls back to built-in prices.">
+        <input type="radio" name="mode" value="backtest_api" onchange="toggleMode()"> API Backtest
+      </label>
+      <label data-help="Uses BTC prices from a CSV file you upload. Best when you want full control over the price data.">
+        <input type="radio" name="mode" value="backtest_file" onchange="toggleMode()"> CSV Backtest
+      </label>
+      <label data-help="Uses bundled historical BTC year-end prices stored directly inside the calculator. No internet needed.">
+        <input type="radio" name="mode" value="backtest_builtin" onchange="toggleMode()"> Built-in Backtest
+      </label>
     </div>
   </div>
 
@@ -449,6 +578,15 @@
           <label for="backtestYears">Backtest span (years):</label>
           <input type="number" id="backtestYears" value="5" min="2" max="20">
           <p style="margin:6px 0; font-size:.85em; color:#757575; text-align:left;">Uses the most recent N calendar-year closes from the selected source.</p>
+        </div>
+      </div>
+      <div class="col" id="apiKeyGroup" style="display:none;">
+        <div class="input-group">
+          <label for="coingeckoApiKey">CoinGecko Demo API Key (optional):</label>
+          <input type="password" id="coingeckoApiKey" placeholder="Leave blank to try public endpoint">
+          <p style="margin:6px 0; font-size:.85em; color:#757575; text-align:left;">
+            API mode tries CoinGecko first. If it fails because of rate limits/CORS/API key issues, the calculator automatically falls back to built-in year-end BTC prices.
+          </p>
         </div>
       </div>
       <div class="col" id="csvGroup" style="display:none;">
@@ -611,9 +749,12 @@ function toggleMode(){
   const isProjection = mode === 'projection';
   const isBacktest = !isProjection;
   const isFile = mode === 'backtest_file';
+  const isApi = mode === 'backtest_api';
 
   document.getElementById('backtestInputs').style.display = isBacktest ? 'block' : 'none';
   document.getElementById('csvGroup').style.display = isFile ? 'block' : 'none';
+  const apiKeyGroup = document.getElementById('apiKeyGroup');
+  if(apiKeyGroup) apiKeyGroup.style.display = isApi ? 'block' : 'none';
   document.getElementById('startYearRow').style.display = isProjection ? 'flex' : 'none';
 
   // Disable growth and initial price in any backtest
@@ -646,12 +787,39 @@ function yearEndSeriesFromMarketChart(pricesArray){
 }
 
 async function fetchYearEndPricesFromAPI(years){
-  const days = Math.min(365 * years + 10, 3650); // ~10 years cap on this endpoint
-  const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`;
-  const resp = await fetch(url);
-  if(!resp.ok) throw new Error('CoinGecko API error');
-  const json = await resp.json();
-  return yearEndSeriesFromMarketChart(json.prices);
+  const days = Math.min(365 * years + 10, 3650); // public market_chart endpoint has practical history/rate limits
+  const apiKey = (document.getElementById('coingeckoApiKey')?.value || '').trim();
+
+  const headers = apiKey ? { 'x-cg-demo-api-key': apiKey } : {};
+
+  const endpoints = [
+    `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
+    `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(Date.now()/1000 - days*86400)}&to=${Math.floor(Date.now()/1000)}`
+  ];
+
+  let lastError = null;
+
+  for(const url of endpoints){
+    try{
+      const resp = await fetch(url, { headers });
+      if(!resp.ok){
+        lastError = new Error(`CoinGecko API returned ${resp.status}`);
+        continue;
+      }
+
+      const json = await resp.json();
+      if(!json.prices || !Array.isArray(json.prices) || json.prices.length === 0){
+        lastError = new Error('CoinGecko returned no price data');
+        continue;
+      }
+
+      return yearEndSeriesFromMarketChart(json.prices);
+    }catch(e){
+      lastError = e;
+    }
+  }
+
+  throw lastError || new Error('CoinGecko API failed');
 }
 
 async function parseCsvFileToYearEndSeries(file){
@@ -689,7 +857,14 @@ async function calculateProjection(){
   try{
     if(mode === 'backtest_api'){
       if(!(backtestYears > 1)) throw new Error('Enter a backtest span of at least 2 years.');
-      series = await fetchYearEndPricesFromAPI(backtestYears);
+
+      try{
+        series = await fetchYearEndPricesFromAPI(backtestYears);
+      }catch(apiError){
+        console.warn('CoinGecko API failed; falling back to built-in prices:', apiError);
+        series = getBuiltInYearEndPrices(backtestYears);
+        err.textContent = 'CoinGecko API failed or was rate-limited, so built-in BTC year-end prices were used instead.';
+      }
     } else if (mode === 'backtest_file'){
       const f = fileInput?.files?.[0];
       if(!f) throw new Error('Please choose a CSV file.');
