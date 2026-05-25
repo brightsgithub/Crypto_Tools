@@ -60,7 +60,7 @@
     #results{ margin-top:40px;padding-bottom:20px;min-height:200px; }
 
     /* Default (desktop/tablet) table */
-    table{ width:100%;border-collapse:separate;border-spacing:0;margin-top:25px;box-shadow:0 2px 5px rgba(0,0,0,.1);border-radius:4px;overflow:hidden;}
+    table{ width:100%;border-collapse:separate;border-spacing:0;margin-top:25px;box-shadow:0 2px 5px rgba(0,0,0,.1);border-radius:4px;overflow:visible;}
     thead th{ background:var(--primary-color);color:#fff;padding:15px 12px;text-align:left;font-weight:500;text-transform:uppercase;font-size:.8em;white-space:normal;position:sticky;top:0;z-index:1;}
     tbody td{ padding:12px;text-align:left;border-bottom:1px solid var(--divider-color);font-size:.9em;white-space:nowrap; }
     tbody tr:nth-child(odd){ background:var(--surface-color); }
@@ -151,6 +151,39 @@
       button{ padding:8px 10px; font-size:.9em; }
       thead th, tbody td{ padding:8px 6px; }
     }
+
+    .calc-tooltip{
+      position:relative;
+      cursor:help;
+      border-bottom:1px dotted rgba(26,35,126,.45);
+      display:inline-block;
+    }
+    .calc-tooltip::after{
+      content:attr(data-tooltip);
+      position:absolute;
+      left:50%;
+      bottom:calc(100% + 10px);
+      transform:translateX(-50%);
+      width:300px;
+      max-width:80vw;
+      background:#111827;
+      color:#f9fafb;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #374151;
+      box-shadow:0 8px 24px rgba(0,0,0,.28);
+      white-space:pre-line;
+      line-height:1.45;
+      font-size:12px;
+      text-align:left;
+      z-index:9999;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .15s ease;
+    }
+    .calc-tooltip:hover::after,
+    .calc-tooltip:focus::after{ opacity:1; }
+
   </style>
 </head>
 <body>
@@ -290,7 +323,7 @@
 
   <div id="results">
     <h2>Yearly Projection</h2>
-    <p>All values USD unless noted. Assumes you borrow at max LTV each year to refinance the prior loan and extract liquidity.</p>
+    <p>All values USD unless noted. Assumes existing debt compounds annually, then you refinance at max LTV and extract any remaining liquidity.</p>
 
     <!-- No wrapper needed; CSS makes this block scrollable in landscape -->
     <table>
@@ -299,7 +332,7 @@
           <th>Year</th>
           <th>BTC Price</th>
           <th>BTC % Growth (YoY)</th>
-          <th>BTC Value</th>
+          <th>BTC Collateral</th>
           <th>Loan Amount</th>
           <th>Loan Balance Due</th>
           <th>Interest Cost</th>
@@ -343,16 +376,16 @@
   <div class="calculations-section">
     <h3>How the Table Values are Calculated</h3>
     <p><strong>BTC Price:</strong> Prior Price × (1 + Annual Growth %) — or the backtested year-end price.</p>
-    <p><strong>BTC Value:</strong> Initial BTC Amount × Current BTC Price</p>
-    <p><strong>Loan Amount:</strong> Current BTC Value × LTV %</p>
-    <p><strong>Loan Balance Due:</strong> Previous Loan × (1 + Interest %)</p>
+    <p><strong>BTC Collateral:</strong> Initial BTC Amount × Current BTC Price</p>
+    <p><strong>Loan Amount:</strong> Current BTC Collateral × LTV %</p>
+    <p><strong>Loan Balance Due:</strong> Previous Loan × (1 + Interest %) — this compounds the prior debt before refinance.</p>
     <p><strong>Interest Cost:</strong> Previous Loan × Interest %</p>
-    <p><strong>Cash Extracted:</strong> New Loan − Loan Balance Due</p>
+    <p><strong>Cash Extracted:</strong> New Loan − Loan Balance Due (never below $0 in the displayed table)</p>
     <p><strong>Total Cash Extracted:</strong> Running sum of positive Cash Extracted amounts</p>
     <p><strong>Cumulative Interest:</strong> Running sum of yearly Interest Cost</p>
     <p><strong>Net Cash:</strong> Total Cash Extracted − Cumulative Interest</p>
-    <p><strong>LTV (actual):</strong> New Loan ÷ BTC Value</p>
-    <p><strong>Equity:</strong> BTC Value − New Loan</p>
+    <p><strong>LTV (actual):</strong> New Loan ÷ BTC Collateral</p>
+    <p><strong>Equity:</strong> BTC Collateral − New Loan</p>
     <p><strong>Margin Call Price (70% LTV):</strong> New Loan ÷ (Initial BTC Amount × 0.70)</p>
     <p><strong>Liquidation Price (80% LTV):</strong> New Loan ÷ (Initial BTC Amount × 0.80)</p>
   </div>
@@ -372,7 +405,7 @@
     <h4 style="margin-top:16px;">Quick Math</h4>
     <p><strong>New Loan Capacity</strong> = (Initial BTC Amount × Current BTC Price) × LTV<br>
        <strong>Old Loan Balance Due</strong> = Previous Loan × (1 + Interest %)</p>
-    <p style="margin:6px 0 0;"><code>(BTC Value × LTV) − [Previous Loan × (1 + Interest %)] &gt; 0</code> ⇒ refinance yields fresh cash.</p>
+    <p style="margin:6px 0 0;"><code>(BTC Collateral × LTV) − [Previous Loan × (1 + Interest %)] &gt; 0</code> ⇒ refinance yields fresh cash.</p>
   </div>
 </div>
 
@@ -547,6 +580,15 @@ function runProjection(series, effectiveYears, startYear){
   const fmtPct = v => `${(v*100).toFixed(0)}%`;
   const fmtPct1 = v => `${(v*100).toFixed(1)}%`;
 
+  const tip = (value, text) => {
+    const safe = String(text).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<span tabindex="0" class="calc-tooltip" title="${safe}" data-tooltip="${safe}">${value}</span>`;
+  };
+  const btcLabel = `${initialBtc.toLocaleString(undefined,{maximumFractionDigits:8})} BTC`;
+  const ltvLabel = fmtPct(ltv);
+  const interestLabel = fmtPct1(interestRate);
+
+
   // Build year list and prices
   let years = [];
   let prices = [];
@@ -618,21 +660,21 @@ function runProjection(series, effectiveYears, startYear){
   let row = document.getElementById('projectionTableBody').insertRow();
   row.innerHTML = `
     <td data-label="Year">${years[0]}</td>
-    <td data-label="BTC Price">${fmt$(btcPrice)}</td>
+    <td data-label="BTC Price">${tip(fmt$(btcPrice), `The Bitcoin price used for ${years[0]} is ${fmt$(btcPrice)}.`)}</td>
     <td data-label="BTC % Growth (YoY)">—</td>
-    <td data-label="BTC Value">${fmt$(btcValue)}</td>
-    <td data-label="Loan Amount">${fmt$(loanAmount)}</td>
+    <td data-label="BTC Collateral">${tip(fmt$(btcValue), `Your Bitcoin collateral value is approximately ${fmt$(btcValue)}\n(${btcLabel} × ${fmt$(btcPrice)} BTC price).`)}</td>
+    <td data-label="Loan Amount">${tip(fmt$(loanAmount), `Your maximum loan amount is approximately ${fmt$(loanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`)}</td>
     <td data-label="Loan Balance Due">N/A</td>
-    <td data-label="Interest Cost">${fmt$(0)}</td>
-    <td data-label="Cumulative Interest">${fmt$(0)}</td>
-    <td data-label="Cash Extracted">${fmt$(loanAmount)}</td>
-    <td data-label="Total Cash Extracted">${fmt$(totalCashExtracted)}</td>
-    <td data-label="Net Cash">${fmt$(totalCashExtracted - cumulativeInterest)}</td>
-    <td data-label="LTV (actual)">${fmtPct(loanAmount / btcValue)}</td>
-    <td data-label="Equity">${fmt$(initialEquity)}</td>
-    <td data-label="Margin Call Price">${fmt$(initialMarginCallPrice)}</td>
-    <td data-label="Liquidation Price">${fmt$(initialLiquidationPrice)}</td>
-    <td data-label="Drop to 80% LTV">${fmtPct1(initialDropTo80)}</td>
+    <td data-label="Interest Cost">${tip(fmt$(0), `No interest has accrued yet because this is the starting year.`)}</td>
+    <td data-label="Cumulative Interest">${tip(fmt$(0), `Total interest paid/accrued so far is $0 in the starting year.`)}</td>
+    <td data-label="Cash Extracted">${tip(fmt$(loanAmount), `Your initial cash extracted is approximately ${fmt$(loanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`)}</td>
+    <td data-label="Total Cash Extracted">${tip(fmt$(totalCashExtracted), `Your total cash extracted so far is approximately ${fmt$(totalCashExtracted)}.\nThis starts with the initial loan amount.`)}</td>
+    <td data-label="Net Cash">${tip(fmt$(totalCashExtracted - cumulativeInterest), `Your net cash so far is approximately ${fmt$(totalCashExtracted - cumulativeInterest)}\n(${fmt$(totalCashExtracted)} total cash extracted − ${fmt$(cumulativeInterest)} cumulative interest).`)}</td>
+    <td data-label="LTV (actual)">${tip(fmtPct(loanAmount / btcValue), `Your actual loan-to-value ratio is ${fmtPct(loanAmount / btcValue)}\n(${fmt$(loanAmount)} loan ÷ ${fmt$(btcValue)} collateral).`)}</td>
+    <td data-label="Equity">${tip(fmt$(initialEquity), `After subtracting the loan balance, your remaining Bitcoin equity is approximately ${fmt$(initialEquity)}\n(${fmt$(btcValue)} collateral − ${fmt$(loanAmount)} loan balance).`)}</td>
+    <td data-label="Margin Call Price">${tip(fmt$(initialMarginCallPrice), `Your loan would reach the margin-call threshold if Bitcoin falls to approximately ${fmt$(initialMarginCallPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 70% margin-call LTV).)`)}</td>
+    <td data-label="Liquidation Price">${tip(fmt$(initialLiquidationPrice), `Your loan would reach the liquidation threshold if Bitcoin falls to approximately ${fmt$(initialLiquidationPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 80% liquidation LTV).)`)}</td>
+    <td data-label="Drop to 80% LTV">${tip(fmtPct1(initialDropTo80), `Bitcoin could fall by approximately ${fmtPct1(initialDropTo80)} from ${fmt$(btcPrice)} before reaching the 80% liquidation threshold.`)}</td>
   `;
 
   chartData.push({Year: years[0], CashExtracted: loanAmount, CumulativeInterest: 0, NetCash: totalCashExtracted - cumulativeInterest});
@@ -663,21 +705,21 @@ function runProjection(series, effectiveYears, startYear){
     const r = document.getElementById('projectionTableBody').insertRow();
     r.innerHTML = `
       <td data-label="Year">${year}</td>
-      <td data-label="BTC Price">${fmt$(btcPrice)}</td>
-      <td data-label="BTC % Growth (YoY)">${yoy==null?'—':fmtPct1(yoy)}</td>
-      <td data-label="BTC Value">${fmt$(btcValue)}</td>
-      <td data-label="Loan Amount">${fmt$(newLoanAmount)}</td>
-      <td data-label="Loan Balance Due">${fmt$(prevLoanBalanceDue)}</td>
-      <td data-label="Interest Cost">${fmt$(interestCost)}</td>
-      <td data-label="Cumulative Interest">${fmt$(cumulativeInterest)}</td>
-      <td data-label="Cash Extracted">${fmt$(Math.max(0,cashExtracted))}</td>
-      <td data-label="Total Cash Extracted">${fmt$(totalCashExtracted)}</td>
-      <td data-label="Net Cash">${fmt$(totalCashExtracted - cumulativeInterest)}</td>
-      <td data-label="LTV (actual)">${fmtPct(ltvActual)}</td>
-      <td data-label="Equity">${fmt$(equity)}</td>
-      <td data-label="Margin Call Price">${fmt$(marginCallPrice)}</td>
-      <td data-label="Liquidation Price">${fmt$(liquidationPrice)}</td>
-      <td data-label="Drop to 80% LTV">${fmtPct1(dropTo80)}</td>
+      <td data-label="BTC Price">${tip(fmt$(btcPrice), `The Bitcoin price used for ${year} is ${fmt$(btcPrice)}.`)}</td>
+      <td data-label="BTC % Growth (YoY)">${tip(yoy==null?'—':fmtPct1(yoy), yoy==null ? `No year-on-year growth is calculated for the starting year.` : `Bitcoin changed by approximately ${fmtPct1(yoy)} compared with the previous year.\n(${fmt$(btcPrice)} current price compared with ${fmt$(prices[i-1])} previous price).`)}</td>
+      <td data-label="BTC Collateral">${tip(fmt$(btcValue), `Your Bitcoin collateral value is approximately ${fmt$(btcValue)}\n(${btcLabel} × ${fmt$(btcPrice)} BTC price).`)}</td>
+      <td data-label="Loan Amount">${tip(fmt$(newLoanAmount), `Your maximum loan amount is approximately ${fmt$(newLoanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`)}</td>
+      <td data-label="Loan Balance Due">${tip(fmt$(prevLoanBalanceDue), `After adding yearly interest, your outstanding loan balance becomes approximately ${fmt$(prevLoanBalanceDue)}\n(${fmt$(prevLoanPrincipal)} previous loan × ${(1+interestRate).toFixed(4)}).`)}</td>
+      <td data-label="Interest Cost">${tip(fmt$(interestCost), `Your yearly interest cost is approximately ${fmt$(interestCost)}\n(${fmt$(prevLoanPrincipal)} previous loan balance × ${interestLabel} interest rate).`)}</td>
+      <td data-label="Cumulative Interest">${tip(fmt$(cumulativeInterest), `Your cumulative interest so far is approximately ${fmt$(cumulativeInterest)}.\nThis is the running total of all yearly interest costs.`)}</td>
+      <td data-label="Cash Extracted">${tip(fmt$(Math.max(0,cashExtracted)), cashExtracted > 0 ? `After refinancing and repaying the previous loan balance, you could extract approximately ${fmt$(cashExtracted)} in additional cash\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).` : `No additional cash can be extracted this year because the compounded loan balance is higher than the new borrowing capacity.\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).`)}</td>
+      <td data-label="Total Cash Extracted">${tip(fmt$(totalCashExtracted), `Your total cash extracted so far is approximately ${fmt$(totalCashExtracted)}.\nThis starts with the initial loan amount.`)}</td>
+      <td data-label="Net Cash">${tip(fmt$(totalCashExtracted - cumulativeInterest), `Your net cash so far is approximately ${fmt$(totalCashExtracted - cumulativeInterest)}\n(${fmt$(totalCashExtracted)} total cash extracted − ${fmt$(cumulativeInterest)} cumulative interest).`)}</td>
+      <td data-label="LTV (actual)">${tip(fmtPct(ltvActual), `Your actual loan-to-value ratio is ${fmtPct(ltvActual)}\n(${fmt$(newLoanAmount)} loan ÷ ${fmt$(btcValue)} collateral).`)}</td>
+      <td data-label="Equity">${tip(fmt$(equity), `After subtracting the outstanding loan balance, your remaining Bitcoin equity is approximately ${fmt$(equity)}\n(${fmt$(btcValue)} collateral − ${fmt$(newLoanAmount)} loan balance).`)}</td>
+      <td data-label="Margin Call Price">${tip(fmt$(marginCallPrice), `Your loan would reach the margin-call threshold if Bitcoin falls to approximately ${fmt$(marginCallPrice)}.\n(${fmt$(newLoanAmount)} loan ÷ (${btcLabel} × 70% margin-call LTV).)`)}</td>
+      <td data-label="Liquidation Price">${tip(fmt$(liquidationPrice), `Your loan would reach the liquidation threshold if Bitcoin falls to approximately ${fmt$(liquidationPrice)}.\n(${fmt$(newLoanAmount)} loan ÷ (${btcLabel} × 80% liquidation LTV).)`)}</td>
+      <td data-label="Drop to 80% LTV">${tip(fmtPct1(dropTo80), `Bitcoin could fall by approximately ${fmtPct1(dropTo80)} from ${fmt$(btcPrice)} before reaching the 80% liquidation threshold.`)}</td>
     `;
     if (cashExtracted < 0) {
       r.classList.add('liquidation-row');
