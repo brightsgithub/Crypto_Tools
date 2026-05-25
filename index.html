@@ -558,13 +558,13 @@
     <p><strong>BTC Price:</strong> Prior Price × (1 + Annual Growth %) — or the backtested year-end price.</p>
     <p><strong>BTC Collateral:</strong> Initial BTC Amount × Current BTC Price</p>
     <p><strong>Loan Amount:</strong> Current BTC Collateral × LTV %</p>
-    <p><strong>Loan Balance Due:</strong> Previous Loan + simple interest for the year. Interest is not compounded within the loan term.</p>
+    <p><strong>Loan Balance Due:</strong> Previous outstanding loan + simple interest for the year. If a refinance fails, unresolved debt carries forward.</p>
     <p><strong>Interest Cost:</strong> Previous Loan × Interest %</p>
     <p><strong>Cash Extracted:</strong> New Loan − Loan Balance Due, after the previous loan and simple interest are repaid (never below $0 in the displayed table).</p>
     <p><strong>Total Cash Extracted:</strong> Running sum of positive Cash Extracted amounts</p>
     <p><strong>Cumulative Interest:</strong> Running sum of yearly Interest Cost</p>
     <p><strong>Net Cash:</strong> Total Cash Extracted − Cumulative Interest</p>
-    <p><strong>LTV (actual):</strong> New Loan ÷ BTC Collateral</p>
+    <p><strong>LTV (actual):</strong> Outstanding loan ÷ BTC Collateral. If refinance fails, this uses carried debt rather than target LTV.</p>
     <p><strong>Equity:</strong> BTC Collateral − New Loan</p>
     <p><strong>Margin Call Price (70% LTV):</strong> New Loan ÷ (Initial BTC Amount × 0.70)</p>
     <p><strong>Liquidation Price (80% LTV):</strong> New Loan ÷ (Initial BTC Amount × 0.80)</p>
@@ -574,7 +574,7 @@
     <h3>Loan Refinance Conditions</h3>
     <p>For a rollover to succeed and provide fresh cash, these generally must hold:</p>
     <ul>
-      <li><strong>Capacity Check:</strong> <em>New Loan Capacity</em> ≥ <em>Old Loan Balance Due</em>.</li>
+      <li><strong>Capacity Check:</strong> <em>New Loan Capacity</em> ≥ <em>Old Loan Balance Due</em>. If not, unresolved debt carries forward.</li>
       <li><strong>LTV Within Limits:</strong> New Loan ÷ BTC Collateral ≤ Lender’s max LTV (e.g., 50%).</li>
       <li><strong>Positive Equity:</strong> BTC Collateral − New Loan &gt; 0 (maintains a cushion).</li>
       <li><strong>Rate vs Growth:</strong> Over time, BTC growth should exceed the interest rate.</li>
@@ -863,25 +863,47 @@ function runProjection(series, effectiveYears, startYear){
   for(let i=1; i<years.length; i++){
     const year = years[i];
     btcPrice = prices[i];
+
+    // Persistent debt model:
+    // If a refinance fails, the old debt does NOT magically reset to the lower loan capacity.
+    // The outstanding balance carries forward and continues to accrue simple interest next year.
     const prevLoanPrincipal = loanAmount;
-    // Ledn agreement uses simple interest: interest is calculated on the previous loan principal, not compounded within the loan term.
     const interestCost = prevLoanPrincipal * interestRate;
     const prevLoanBalanceDue = prevLoanPrincipal + interestCost;
     cumulativeInterest += interestCost;
 
     btcValue = initialBtc * btcPrice;
-    const newLoanAmount = btcValue * ltv;
-    const cashExtracted = newLoanAmount - prevLoanBalanceDue;
+    const newLoanCapacity = btcValue * ltv;
+    const cashExtractedRaw = newLoanCapacity - prevLoanBalanceDue;
+    const refinanceSucceeded = cashExtractedRaw >= 0;
 
-    loanAmount = newLoanAmount;
+    const cashExtracted = refinanceSucceeded ? cashExtractedRaw : 0;
+
+    // If refinance succeeds, debt resets to the new max loan.
+    // If refinance fails, unresolved debt carries forward.
+    loanAmount = refinanceSucceeded ? newLoanCapacity : prevLoanBalanceDue;
+
     if (cashExtracted > 0) totalCashExtracted += cashExtracted;
 
-    const marginCallPrice = newLoanAmount / (initialBtc * 0.70);
-    const liquidationPrice = newLoanAmount / (initialBtc * 0.80);
-    const equity = btcValue - newLoanAmount;
-    const ltvActual = newLoanAmount / btcValue;
+    const marginCallPrice = loanAmount / (initialBtc * 0.70);
+    const liquidationPrice = loanAmount / (initialBtc * 0.80);
+    const equity = btcValue - loanAmount;
+    const ltvActual = loanAmount / btcValue;
     const dropTo80 = Math.max(0, 1 - (liquidationPrice / btcPrice));
     const yoy = growthYoY[i];
+
+    const loanAmountLabel = refinanceSucceeded ? fmt$(loanAmount) : `${fmt$(loanAmount)} carried`;
+    const loanAmountTip = refinanceSucceeded
+      ? `Your refinanced loan amount is approximately ${fmt$(loanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`
+      : `Refinance failed because the new borrowing capacity was only ${fmt$(newLoanCapacity)}, but the balance due was ${fmt$(prevLoanBalanceDue)}.\nThe unresolved debt carries forward as ${fmt$(loanAmount)}.`;
+
+    const cashTip = refinanceSucceeded
+      ? `After refinancing and repaying the previous loan balance, you could extract approximately ${fmt$(cashExtracted)} in additional cash\n(${fmt$(newLoanCapacity)} new loan capacity − ${fmt$(prevLoanBalanceDue)} existing loan balance).`
+      : `No additional cash can be extracted this year because the loan balance plus simple interest is higher than the new borrowing capacity.\n(${fmt$(newLoanCapacity)} new loan capacity − ${fmt$(prevLoanBalanceDue)} existing loan balance).\nThe unresolved debt carries forward.`;
+
+    const ltvTip = refinanceSucceeded
+      ? `Your actual loan-to-value ratio is ${fmtPct(ltvActual)}\n(${fmt$(loanAmount)} loan ÷ ${fmt$(btcValue)} collateral).`
+      : `Because the refinance failed, actual LTV is based on the carried debt, not the target 50% refinance.\nActual LTV is ${fmtPct(ltvActual)}\n(${fmt$(loanAmount)} carried debt ÷ ${fmt$(btcValue)} collateral).`;
 
     const r = document.getElementById('projectionTableBody').insertRow();
     r.innerHTML = `
@@ -889,34 +911,36 @@ function runProjection(series, effectiveYears, startYear){
       <td data-label="BTC Price">${tip(fmt$(btcPrice), `The Bitcoin price used for ${year} is ${fmt$(btcPrice)}.`)}</td>
       <td data-label="BTC % Growth (YoY)">${tip(yoy==null?'—':fmtPct1(yoy), yoy==null ? `No year-on-year growth is calculated for the starting year.` : `Bitcoin changed by approximately ${fmtPct1(yoy)} compared with the previous year.\n(${fmt$(btcPrice)} current price compared with ${fmt$(prices[i-1])} previous price).`)}</td>
       <td data-label="BTC Collateral">${tip(fmt$(btcValue), `Your Bitcoin collateral value is approximately ${fmt$(btcValue)}\n(${btcLabel} × ${fmt$(btcPrice)} BTC price).`)}</td>
-      <td data-label="Loan Amount">${tip(fmt$(newLoanAmount), `Your maximum loan amount is approximately ${fmt$(newLoanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`)}</td>
+      <td data-label="Loan Amount">${tip(loanAmountLabel, loanAmountTip)}</td>
       <td data-label="Loan Balance Due">${tip(fmt$(prevLoanBalanceDue), `After adding simple yearly interest, your outstanding loan balance becomes approximately ${fmt$(prevLoanBalanceDue)}\n(${fmt$(prevLoanPrincipal)} previous loan + simple interest).`)}</td>
       <td data-label="Interest Cost">${tip(fmt$(interestCost), `Your yearly interest cost is approximately ${fmt$(interestCost)}\n(${fmt$(prevLoanPrincipal)} previous loan balance × ${interestLabel} interest rate).`)}</td>
       <td data-label="Cumulative Interest">${tip(fmt$(cumulativeInterest), `Your cumulative interest so far is approximately ${fmt$(cumulativeInterest)}.\nThis is the running total of simple interest costs across each yearly loan period.`)}</td>
-      <td data-label="Cash Extracted" class="cash-col">${tip(fmt$(Math.max(0,cashExtracted)), cashExtracted > 0 ? `After refinancing and repaying the previous loan balance, you could extract approximately ${fmt$(cashExtracted)} in additional cash\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).` : `No additional cash can be extracted this year because the loan balance plus simple interest is higher than the new borrowing capacity.\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).`)}</td>
+      <td data-label="Cash Extracted" class="cash-col">${tip(fmt$(cashExtracted), cashTip)}</td>
       <td data-label="Total Cash Extracted">${tip(fmt$(totalCashExtracted), `Your total cash extracted so far is approximately ${fmt$(totalCashExtracted)}.\nThis starts with the initial loan amount.`)}</td>
       <td data-label="Net Cash">${tip(fmt$(totalCashExtracted - cumulativeInterest), `Your net cash so far is approximately ${fmt$(totalCashExtracted - cumulativeInterest)}\n(${fmt$(totalCashExtracted)} total cash extracted − ${fmt$(cumulativeInterest)} cumulative interest).`)}</td>
-      <td data-label="LTV (actual)">${tip(fmtPct(ltvActual), `Your actual loan-to-value ratio is ${fmtPct(ltvActual)}\n(${fmt$(newLoanAmount)} loan ÷ ${fmt$(btcValue)} collateral).`)}</td>
-      <td data-label="Equity">${tip(fmt$(equity), `After subtracting the outstanding loan balance, your remaining Bitcoin equity is approximately ${fmt$(equity)}\n(${fmt$(btcValue)} collateral − ${fmt$(newLoanAmount)} loan balance).`)}</td>
-      <td data-label="Margin Call Price">${tip(fmt$(marginCallPrice), `Your loan would reach the margin-call threshold if Bitcoin falls to approximately ${fmt$(marginCallPrice)}.\n(${fmt$(newLoanAmount)} loan ÷ (${btcLabel} × 70% margin-call LTV).)`)}</td>
-      <td data-label="Liquidation Price">${tip(fmt$(liquidationPrice), `Your loan would reach the liquidation threshold if Bitcoin falls to approximately ${fmt$(liquidationPrice)}.\n(${fmt$(newLoanAmount)} loan ÷ (${btcLabel} × 80% liquidation LTV).)`)}</td>
+      <td data-label="LTV (actual)">${tip(fmtPct(ltvActual), ltvTip)}</td>
+      <td data-label="Equity">${tip(fmt$(equity), `After subtracting the outstanding loan balance, your remaining Bitcoin equity is approximately ${fmt$(equity)}\n(${fmt$(btcValue)} collateral − ${fmt$(loanAmount)} outstanding loan balance).`)}</td>
+      <td data-label="Margin Call Price">${tip(fmt$(marginCallPrice), `Your loan would reach the margin-call threshold if Bitcoin falls to approximately ${fmt$(marginCallPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 70% margin-call LTV).)`)}</td>
+      <td data-label="Liquidation Price">${tip(fmt$(liquidationPrice), `Your loan would reach the liquidation threshold if Bitcoin falls to approximately ${fmt$(liquidationPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 80% liquidation LTV).)`)}</td>
       <td data-label="Drop to 80% LTV">${tip(fmtPct1(dropTo80), `Bitcoin could fall by approximately ${fmtPct1(dropTo80)} from ${fmt$(btcPrice)} before reaching the 80% liquidation threshold.`)}</td>
     `;
-    if (cashExtracted < 0) {
+    if (!refinanceSucceeded || ltvActual >= marginCallRatio) {
       r.classList.add('liquidation-row');
-      r.title = "Warning: New loan is insufficient to cover previous loan + interest.";
+      r.title = !refinanceSucceeded
+        ? "Warning: Refinance failed. Unresolved debt has carried forward."
+        : "Warning: Actual LTV is at or above the margin-call threshold.";
     }
 
     chartData.push({
       Year: year,
-      CashExtracted: Math.max(0,cashExtracted),
+      CashExtracted: cashExtracted,
       CumulativeInterest: cumulativeInterest,
       NetCash: totalCashExtracted - cumulativeInterest
     });
   }
 
   if (document.getElementById('projectionTableBody').querySelectorAll('.liquidation-row').length > 0) {
-    errorMessageDiv.textContent = 'Warning: A potential liquidation/refinance failure is highlighted in red.';
+    errorMessageDiv.textContent = 'Warning: A potential refinance failure, margin-call risk, or liquidation risk is highlighted in red.';
   }
 
   const domain = (series ? series.map(s=>String(s.year)) : Array.from({length:effectiveYears+1},(_,i)=>String(startYear+i)));
@@ -1147,14 +1171,14 @@ function exportPDF(){
     ['BTC Price', 'Prior Price × (1 + Annual Growth %) — or the backtested year-end price.'],
     ['BTC Collateral', 'Initial BTC Amount × Current BTC Price.'],
     ['Loan Amount', 'Current BTC Collateral × LTV %.'],
-    ['Loan Balance Due', 'Previous Loan + simple interest for the year. Interest is not compounded within the loan term.'],
+    ['Loan Balance Due', 'Previous outstanding loan + simple interest for the year. If refinance fails, unresolved debt carries forward.'],
     ['Interest Cost', 'Previous Loan × Interest %.'],
     ['Cash Extracted', 'New Loan - Loan Balance Due, after the previous loan and simple interest are repaid.'],
     ['Total Cash Extracted', 'Running sum of positive Cash Extracted amounts.'],
     ['Cumulative Interest', 'Running sum of yearly Interest Cost.'],
     ['Net Cash', 'Total Cash Extracted - Cumulative Interest.'],
-    ['LTV (actual)', 'New Loan ÷ BTC Collateral.'],
-    ['Equity', 'BTC Collateral - New Loan.'],
+    ['LTV (actual)', 'Outstanding loan ÷ BTC Collateral. If refinance fails, this uses carried debt rather than target LTV.'],
+    ['Equity', 'BTC Collateral - outstanding loan.'],
     ['Margin Call Price', 'New Loan ÷ (Initial BTC Amount × 0.70).'],
     ['Liquidation Price', 'New Loan ÷ (Initial BTC Amount × 0.80).']
   ];
