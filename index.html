@@ -354,7 +354,7 @@
 
   <div id="results">
     <h2>Yearly Projection</h2>
-    <p>All values USD unless noted. Assumes existing debt compounds annually, then you refinance at max LTV and extract any remaining liquidity.</p>
+    <p>All values USD unless noted. Assumes simple interest accrues on the previous loan, then you refinance at max LTV and extract any remaining liquidity.</p>
 
     <!-- No wrapper needed; CSS makes this block scrollable in landscape -->
     <table>
@@ -385,6 +385,8 @@
   </div>
 
   <div class="loan-rollover-section" id="rolloverSection">
+    <p><strong>Important:</strong> This model follows the Ledn-style loan structure where interest is simple interest for the loan term, not compounded within the same loan. Future years can still grow debt because each refinance creates a new loan principal.</p>
+
     <h3>How the Loan Rollover Works</h3>
     <p>The lender pays off your old loan internally when issuing a new, larger loan; you receive the difference as fresh cash.</p>
     <ul id="year0List">
@@ -409,9 +411,9 @@
     <p><strong>BTC Price:</strong> Prior Price × (1 + Annual Growth %) — or the backtested year-end price.</p>
     <p><strong>BTC Collateral:</strong> Initial BTC Amount × Current BTC Price</p>
     <p><strong>Loan Amount:</strong> Current BTC Collateral × LTV %</p>
-    <p><strong>Loan Balance Due:</strong> Previous Loan × (1 + Interest %) — this compounds the prior debt before refinance.</p>
+    <p><strong>Loan Balance Due:</strong> Previous Loan + simple interest for the year. Interest is not compounded within the loan term.</p>
     <p><strong>Interest Cost:</strong> Previous Loan × Interest %</p>
-    <p><strong>Cash Extracted:</strong> New Loan − Loan Balance Due (never below $0 in the displayed table)</p>
+    <p><strong>Cash Extracted:</strong> New Loan − Loan Balance Due, after the previous loan and simple interest are repaid (never below $0 in the displayed table).</p>
     <p><strong>Total Cash Extracted:</strong> Running sum of positive Cash Extracted amounts</p>
     <p><strong>Cumulative Interest:</strong> Running sum of yearly Interest Cost</p>
     <p><strong>Net Cash:</strong> Total Cash Extracted − Cumulative Interest</p>
@@ -426,8 +428,8 @@
     <p>For a rollover to succeed and provide fresh cash, these generally must hold:</p>
     <ul>
       <li><strong>Capacity Check:</strong> <em>New Loan Capacity</em> ≥ <em>Old Loan Balance Due</em>.</li>
-      <li><strong>LTV Within Limits:</strong> New Loan ÷ BTC Value ≤ Lender’s max LTV (e.g., 50%).</li>
-      <li><strong>Positive Equity:</strong> BTC Value − New Loan &gt; 0 (maintains a cushion).</li>
+      <li><strong>LTV Within Limits:</strong> New Loan ÷ BTC Collateral ≤ Lender’s max LTV (e.g., 50%).</li>
+      <li><strong>Positive Equity:</strong> BTC Collateral − New Loan &gt; 0 (maintains a cushion).</li>
       <li><strong>Rate vs Growth:</strong> Over time, BTC growth should exceed the interest rate.</li>
       <li><strong>No Breached Thresholds:</strong> Not already in margin call / liquidation zone.</li>
       <li><strong>Lender Availability:</strong> Lender supports refinancing; fees/terms acceptable.</li>
@@ -436,7 +438,7 @@
     <h4 style="margin-top:16px;">Quick Math</h4>
     <p><strong>New Loan Capacity</strong> = (Initial BTC Amount × Current BTC Price) × LTV<br>
        <strong>Old Loan Balance Due</strong> = Previous Loan × (1 + Interest %)</p>
-    <p style="margin:6px 0 0;"><code>(BTC Collateral × LTV) − [Previous Loan × (1 + Interest %)] &gt; 0</code> ⇒ refinance yields fresh cash.</p>
+    <p style="margin:6px 0 0;"><code>(BTC Collateral × LTV) − [Previous Loan + (Previous Loan × Interest %)] &gt; 0</code> ⇒ refinance yields fresh cash.</p>
   </div>
 </div>
 
@@ -715,6 +717,7 @@ function runProjection(series, effectiveYears, startYear){
     const year = years[i];
     btcPrice = prices[i];
     const prevLoanPrincipal = loanAmount;
+    // Ledn agreement uses simple interest: interest is calculated on the previous loan principal, not compounded within the loan term.
     const interestCost = prevLoanPrincipal * interestRate;
     const prevLoanBalanceDue = prevLoanPrincipal + interestCost;
     cumulativeInterest += interestCost;
@@ -740,10 +743,10 @@ function runProjection(series, effectiveYears, startYear){
       <td data-label="BTC % Growth (YoY)">${tip(yoy==null?'—':fmtPct1(yoy), yoy==null ? `No year-on-year growth is calculated for the starting year.` : `Bitcoin changed by approximately ${fmtPct1(yoy)} compared with the previous year.\n(${fmt$(btcPrice)} current price compared with ${fmt$(prices[i-1])} previous price).`)}</td>
       <td data-label="BTC Collateral">${tip(fmt$(btcValue), `Your Bitcoin collateral value is approximately ${fmt$(btcValue)}\n(${btcLabel} × ${fmt$(btcPrice)} BTC price).`)}</td>
       <td data-label="Loan Amount">${tip(fmt$(newLoanAmount), `Your maximum loan amount is approximately ${fmt$(newLoanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`)}</td>
-      <td data-label="Loan Balance Due">${tip(fmt$(prevLoanBalanceDue), `After adding yearly interest, your outstanding loan balance becomes approximately ${fmt$(prevLoanBalanceDue)}\n(${fmt$(prevLoanPrincipal)} previous loan × ${(1+interestRate).toFixed(4)}).`)}</td>
+      <td data-label="Loan Balance Due">${tip(fmt$(prevLoanBalanceDue), `After adding simple yearly interest, your outstanding loan balance becomes approximately ${fmt$(prevLoanBalanceDue)}\n(${fmt$(prevLoanPrincipal)} previous loan + simple interest).`)}</td>
       <td data-label="Interest Cost">${tip(fmt$(interestCost), `Your yearly interest cost is approximately ${fmt$(interestCost)}\n(${fmt$(prevLoanPrincipal)} previous loan balance × ${interestLabel} interest rate).`)}</td>
-      <td data-label="Cumulative Interest">${tip(fmt$(cumulativeInterest), `Your cumulative interest so far is approximately ${fmt$(cumulativeInterest)}.\nThis is the running total of all yearly interest costs.`)}</td>
-      <td data-label="Cash Extracted">${tip(fmt$(Math.max(0,cashExtracted)), cashExtracted > 0 ? `After refinancing and repaying the previous loan balance, you could extract approximately ${fmt$(cashExtracted)} in additional cash\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).` : `No additional cash can be extracted this year because the compounded loan balance is higher than the new borrowing capacity.\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).`)}</td>
+      <td data-label="Cumulative Interest">${tip(fmt$(cumulativeInterest), `Your cumulative interest so far is approximately ${fmt$(cumulativeInterest)}.\nThis is the running total of simple interest costs across each yearly loan period.`)}</td>
+      <td data-label="Cash Extracted">${tip(fmt$(Math.max(0,cashExtracted)), cashExtracted > 0 ? `After refinancing and repaying the previous loan balance, you could extract approximately ${fmt$(cashExtracted)} in additional cash\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).` : `No additional cash can be extracted this year because the loan balance plus simple interest is higher than the new borrowing capacity.\n(${fmt$(newLoanAmount)} new loan − ${fmt$(prevLoanBalanceDue)} existing loan balance).`)}</td>
       <td data-label="Total Cash Extracted">${tip(fmt$(totalCashExtracted), `Your total cash extracted so far is approximately ${fmt$(totalCashExtracted)}.\nThis starts with the initial loan amount.`)}</td>
       <td data-label="Net Cash">${tip(fmt$(totalCashExtracted - cumulativeInterest), `Your net cash so far is approximately ${fmt$(totalCashExtracted - cumulativeInterest)}\n(${fmt$(totalCashExtracted)} total cash extracted − ${fmt$(cumulativeInterest)} cumulative interest).`)}</td>
       <td data-label="LTV (actual)">${tip(fmtPct(ltvActual), `Your actual loan-to-value ratio is ${fmtPct(ltvActual)}\n(${fmt$(newLoanAmount)} loan ÷ ${fmt$(btcValue)} collateral).`)}</td>
