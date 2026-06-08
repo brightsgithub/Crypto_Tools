@@ -1,100 +1,1462 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto Tools Dashboard</title>
-    <style>
-        :root {
-            --bg: #0d1117;
-            --card: #161b22;
-            --border: #30363d;
-            --text: #c9d1d9;
-            --muted: #8b949e;
-            --accent: #f7931a;
-            --blue: #58a6ff;
-            --white: #fff;
-        }
+  <meta charset="UTF-8" />
+  <!-- NOTE: viewport-fit helps on iOS with notches -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>BTC Buy-Borrow-Die Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/vega@5.21.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.20.2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root{
+      --primary-color:#1a237e; --primary-light-color:#3949ab; --accent-color:#4caf50; --accent-dark-color:#388e3c;
+      --text-color-dark:#212121; --text-color-light:#757575; --background-color:#f5f5f5; --surface-color:#ffffff;
+      --row-even-color:#f0f4f8; --divider-color:#e0e0e0; --error-color:#d32f2f;
+      --btc-orange:#F7931A; --btc-orange-dark:#c97500;
+      --section-bg:#e8ebf0; --hover-row:#e8ebf0; --cash-bg:#fff3d6; --cash-text:#8a4b00;
+      --resource-bg:#111827; --resource-border:#2d3748; --resource-text:#d1d5db;
+    }
 
-        * { box-sizing: border-box; }
+    body.dark-mode{
+      --primary-color:#93c5fd; --primary-light-color:#60a5fa; --accent-color:#34d399; --accent-dark-color:#10b981;
+      --text-color-dark:#e5e7eb; --text-color-light:#cbd5e1; --background-color:#071623; --surface-color:#102033;
+      --row-even-color:#162a41; --divider-color:#334155; --error-color:#f87171;
+      --section-bg:#13243a; --hover-row:#1d3552; --cash-bg:#4a3410; --cash-text:#ffd166;
+      --resource-bg:#0b1220; --resource-border:#334155; --resource-text:#d1d5db;
+    }
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background-color: var(--bg);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            color: var(--text);
-            padding: 40px 20px;
-        }
+    button.btn-btc{ background:var(--btc-orange); }
+    button.btn-btc:hover{ background:var(--btc-orange-dark); }
+    button.btn-btc:focus{ outline:none; box-shadow:0 0 0 3px rgba(247,147,26,0.35); }
 
-        .tools-navigation {
-            background-color: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 32px;
-            max-width: 600px;
-            margin: 0 auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,.3);
-        }
+    body{font-family:'Roboto',sans-serif;margin:0;padding:20px;background:var(--background-color);color:var(--text-color-dark);line-height:1.6;}
+    .container{max-width:80%;margin:auto;background:var(--surface-color);padding:30px;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,.1);}
+    h1,h2{color:var(--primary-color);text-align:center;margin-bottom:25px;font-weight:500;}
+    p{color:var(--text-color-light);text-align:center;margin-bottom:20px;}
+    .intro-section,.calculations-section,.loan-rollover-section{
+      margin-top:40px;padding:20px;background:var(--section-bg);border-left:5px solid var(--primary-light-color);border-radius:4px;
+    }
+    .intro-section h3,.calculations-section h3,.loan-rollover-section h3{margin-top:0;color:var(--primary-color);font-weight:500;}
+    .intro-section p,.calculations-section p,.loan-rollover-section p{ text-align:left;margin:5px 0;font-size:.9em;color:var(--text-color-dark);}
+    .intro-section ul,.loan-rollover-section ul{ text-align:left;margin-top:10px;padding-left:20px; }
+    .intro-section li,.loan-rollover-section li{ margin-bottom:5px;font-size:.9em;color:var(--text-color-dark); }
 
-        .tools-navigation h2 {
-            color: var(--white);
-            margin: 0 0 8px 0;
-            font-size: 1.8rem;
-            letter-spacing: -0.03em;
-        }
+    .row { display:flex; gap:20px; flex-wrap:wrap; }
+    .col { flex:1 1 240px; }
 
-        .tools-navigation p {
-            color: var(--muted);
-            margin: 0 0 24px 0;
-            font-size: 0.95rem;
-        }
+    .input-group{ margin-bottom:18px; }
+    .input-group label{ display:block;margin-bottom:6px;font-weight:500;color:var(--text-color-dark);font-size:.95em;}
+    .input-group input, .input-group select{
+      width:100%;padding:10px;border:1px solid var(--divider-color);border-radius:4px;font-size:1em;transition:border-color .3s ease;
+      box-sizing:border-box;background:var(--surface-color);color:var(--text-color-dark);
+    }
+    .input-group input:focus, .input-group select:focus{ outline:none;border-color:var(--primary-light-color);box-shadow:0 0 0 2px rgba(57,73,171,.2);}
 
-        .tools-navigation ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
+    .btn-row{ display:flex; gap:12px; flex-wrap:wrap; }
+    button{
+      padding:12px 16px;background:var(--primary-light-color);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:1.05em;font-weight:500;
+      transition:background .3s ease,box-shadow .3s ease;box-shadow:0 2px 4px rgba(0,0,0,.2);
+    }
+    button:hover{ background:var(--primary-color);box-shadow:0 4px 8px rgba(0,0,0,.25); }
+    .btn-secondary{ background:#6170d6; }
+    .btn-secondary:hover{ background:#4656c7; }
+    .btn-ghost{ background:#eef0ff; color:#1a237e; }
+    .btn-ghost:hover{ background:#dfe3ff; }
 
-        .tools-navigation li {
-            margin: 0;
-        }
+    .error-message{ color:var(--error-color);text-align:center;margin-top:15px;font-weight:500;font-size:.9em; }
 
-        .tools-navigation a {
-            display: block;
-            color: var(--blue);
-            text-decoration: none;
-            font-weight: 600;
-            padding: 14px 18px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            transition: all 0.2s ease;
-        }
+    #results{ margin-top:40px;padding-bottom:20px;min-height:200px; }
 
-        .tools-navigation a:hover {
-            color: var(--white);
-            background: rgba(247, 147, 26, 0.1);
-            border-color: var(--accent);
-            transform: translateX(4px);
-        }
-    </style>
+    /* Default (desktop/tablet) table */
+    table{ width:100%;border-collapse:separate;border-spacing:0;margin-top:25px;box-shadow:0 2px 5px rgba(0,0,0,.1);border-radius:4px;overflow:visible;}
+    thead th{ background:var(--primary-color);color:#fff;padding:15px 12px;text-align:left;font-weight:500;text-transform:uppercase;font-size:.8em;white-space:normal;position:sticky;top:0;z-index:1;}
+
+    body.dark-mode thead th{
+      background:var(--btc-orange);
+      color:#111827;
+    }
+    tbody td{ padding:12px;text-align:left;border-bottom:1px solid var(--divider-color);font-size:.9em;white-space:nowrap; }
+    tbody tr:nth-child(odd){ background:var(--surface-color); }
+    tbody tr:nth-child(even){ background:var(--row-even-color); }
+    tbody tr:hover{ background:var(--hover-row); }
+    .liquidation-row{ background:#ffebee !important;color:var(--error-color);font-weight:500; }
+    .liquidation-row:hover{ background:#ffccbc !important; }
+
+    /* Chart container */
+    #chart-container{ margin-top:40px;text-align:center;display:block;width:100%;overflow-x:auto;clear:both; }
+    #chart-container .vega-embed .vega-loader{ display:none!important; }
+
+    .mode-row{display:flex;flex-wrap:wrap;gap:16px;margin:8px 0 0 0;}
+    .mode-row label{display:flex;align-items:center;font-size:.95em;color:var(--text-color-dark);gap:6px;}
+
+
+    /* Polished mode picker */
+    .mode-row{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:10px;
+      margin:18px 0 24px;
+      padding:8px;
+      border-radius:18px;
+      background:var(--row-even-color);
+      border:1px solid var(--divider-color);
+    }
+
+    .mode-row label{
+      position:relative;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-height:64px;
+      padding:14px 16px 14px 46px;
+      border-radius:14px;
+      cursor:pointer;
+      color:var(--text-color-dark);
+      background:transparent;
+      transition:transform .16s ease, background .16s ease, box-shadow .16s ease;
+      font-weight:700;
+      line-height:1.25;
+    }
+
+    .mode-row label:hover{
+      background:rgba(247,147,26,.10);
+      transform:translateY(-1px);
+    }
+
+    .mode-row input[type="radio"]{
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+    }
+
+    .mode-row label::before{
+      content:"";
+      position:absolute;
+      left:16px;
+      top:50%;
+      width:18px;
+      height:18px;
+      border-radius:999px;
+      transform:translateY(-50%);
+      border:2px solid var(--text-color-light);
+      background:var(--surface-color);
+      box-sizing:border-box;
+    }
+
+    .mode-row label:has(input[type="radio"]:checked){
+      background:var(--surface-color);
+      box-shadow:0 6px 18px rgba(0,0,0,.12);
+      outline:2px solid rgba(247,147,26,.38);
+    }
+
+    .mode-row label:has(input[type="radio"]:checked)::before{
+      border-color:var(--btc-orange);
+      background:
+        radial-gradient(circle at center, var(--btc-orange) 0 45%, transparent 48%);
+    }
+
+    body.dark-mode .mode-row{
+      background:#0b1726;
+      border-color:#26384f;
+    }
+
+    body.dark-mode .mode-row label:has(input[type="radio"]:checked){
+      background:#15263b;
+      outline-color:rgba(247,147,26,.55);
+    }
+
+
+
+    .mode-row label[data-help]::after{
+      content:attr(data-help);
+      position:absolute;
+      left:50%;
+      bottom:calc(100% + 10px);
+      transform:translateX(-50%);
+      width:280px;
+      max-width:80vw;
+      background:#111827;
+      color:#f9fafb;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #374151;
+      box-shadow:0 8px 24px rgba(0,0,0,.28);
+      white-space:normal;
+      line-height:1.45;
+      font-size:12px;
+      font-weight:500;
+      text-transform:none;
+      letter-spacing:normal;
+      z-index:9999;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .15s ease;
+    }
+
+    .mode-row label[data-help]:hover::after,
+    .mode-row label[data-help]:focus-within::after{
+      opacity:1;
+    }
+
+    .mode-row label:has(input[type="radio"]:checked)::after{
+      content:attr(data-help);
+      right:auto;
+      bottom:calc(100% + 10px);
+      font-size:12px;
+      color:#f9fafb;
+      font-weight:500;
+      text-transform:none;
+      letter-spacing:normal;
+    }
+
+
+    .stress-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+    .stress-row .input-group{margin-bottom:0; min-width: 180px;}
+
+    /* ---------- Small screens (portrait width) — your original mobile rules ---------- */
+    @media (max-width:600px){
+      .container{ max-width:95%;padding:15px; }
+      body{ padding:10px; }
+      h1{ font-size:1.4em;margin-bottom:15px; }
+      h2{ font-size:1.2em; }
+      p{ font-size:.85em; }
+      .intro-section,.calculations-section,.loan-rollover-section{ padding:15px; }
+      .intro-section h3,.calculations-section h3,.loan-rollover-section h3{ font-size:1.1em; }
+      .input-group label{ font-size:.85em; }
+      .input-group input, .input-group select{ font-size:.9em;padding:8px; }
+
+      #results{ padding-bottom:30px;min-height:300px; }
+
+      /* For narrow portrait, keep the stacked card table style */
+      table, thead, tbody, th, td, tr { display:block; }
+      thead{ position:absolute; top:-9999px; left:-9999px; }
+      tr{ border:1px solid var(--divider-color); margin-bottom:15px; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,.1); position:relative;}
+      td{
+        border-bottom:1px solid var(--divider-color); position:relative; padding:10px 10px 10px 50%; text-align:right;
+        font-size:.8em; line-height:1.4; min-height:40px; box-sizing:border-box;
+      }
+      td:before{
+        content:attr(data-label); position:absolute; left:10px; width:40%; padding-right:10px; text-align:left; font-weight:500;
+        font-size:.8em; color:var(--text-color-dark); white-space:normal; word-break:break-word;
+      }
+      td:last-child{ border-bottom:0; }
+      #chart-container{ max-width:100%; padding:0 10px; overflow-x:auto; margin-top:50px; clear:both; }
+    }
+
+    /* ---------- NEW: Compact landscape mode for phones (short height) ---------- */
+    @media (orientation: landscape) and (max-height: 480px){
+      body{ padding:8px; }
+      .container{ max-width:100%; padding:12px; border-radius:10px; }
+      h1{ font-size:1.15em; margin-bottom:10px; }
+      h2{ font-size:1.05em; margin:16px 0 8px; }
+      p{ font-size:.82em; margin-bottom:10px; }
+
+      /* Use space wisely: 2 columns for inputs */
+      .row{ gap:12px; }
+      .col{ flex:1 1 calc(50% - 12px); min-width:240px; }
+
+      .input-group{ margin-bottom:12px; }
+      .input-group label{ font-size:.85em; margin-bottom:4px; }
+      .input-group input, .input-group select{ padding:8px; font-size:.95em; }
+
+      .btn-row{ gap:8px; position:sticky; top:0; padding:6px 0; background:var(--surface-color); z-index:5; }
+      button{ padding:10px 12px; font-size:.95em; }
+
+      /* Keep long text tucked */
+      .intro-section,.calculations-section,.loan-rollover-section{
+        margin-top:16px; padding:12px;
+      }
+
+      /* Table: keep it as a real table and let it scroll horizontally */
+      table{ display:block; overflow-x:auto; white-space:nowrap; }
+      thead th{ font-size:.75em; padding:10px 8px; position:sticky; top:0; }
+      tbody td{ font-size:.8em; padding:10px 8px; }
+      /* Reduce row hover to subtle */
+      tbody tr:hover{ background:#eef2f7; }
+
+      /* Chart height reduced for short screens */
+      #chart-container{ margin-top:18px; }
+      /* Vega will still get autosized; we also reduce default height via a CSS var from JS */
+    }
+
+    /* OPTIONAL: ultra-compact if really short */
+    @media (orientation: landscape) and (max-height: 360px){
+      h1{ font-size:1em; }
+      button{ padding:8px 10px; font-size:.9em; }
+      thead th, tbody td{ padding:8px 6px; }
+    }
+
+
+    .top-actions{
+      display:flex;
+      justify-content:flex-end;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .theme-toggle{
+      background:var(--surface-color);
+      color:var(--text-color-dark);
+      border:1px solid var(--divider-color);
+      box-shadow:none;
+      font-size:.95em;
+      padding:9px 12px;
+    }
+    .theme-toggle:hover{
+      background:var(--row-even-color);
+      color:var(--text-color-dark);
+      box-shadow:none;
+    }
+    .resources-box{
+      margin:20px 0;
+      padding:15px;
+      background:var(--resource-bg);
+      border:1px solid var(--resource-border);
+      border-radius:10px;
+      color:white;
+    }
+    .resources-box p{ color:var(--resource-text); }
+    th.cash-col, td.cash-col{
+      background:var(--cash-bg) !important;
+      color:var(--cash-text) !important;
+      font-weight:700;
+    }
+    th.cash-col{
+      color:#111827 !important;
+    }
+    body.dark-mode th.cash-col{
+      color:#ffd166 !important;
+    }
+
+    .calc-tooltip{
+      position:relative;
+      cursor:help;
+      border-bottom:1px dotted rgba(26,35,126,.45);
+      display:inline-block;
+    }
+    .calc-tooltip::after{
+      content:attr(data-tooltip);
+      position:absolute;
+      left:50%;
+      bottom:calc(100% + 10px);
+      transform:translateX(-50%);
+      width:300px;
+      max-width:80vw;
+      background:#111827;
+      color:#f9fafb;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #374151;
+      box-shadow:0 8px 24px rgba(0,0,0,.28);
+      white-space:pre-line;
+      line-height:1.45;
+      font-size:12px;
+      text-align:left;
+      z-index:9999;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .15s ease;
+    }
+    .calc-tooltip:hover::after,
+    .calc-tooltip:focus::after{ opacity:1; }
+
+  
+    /* Keep hover readable in dark mode, including landscape media override */
+    body.dark-mode tbody tr:hover{
+      background:var(--hover-row) !important;
+      color:var(--text-color-dark) !important;
+    }
+
+    body.dark-mode tbody tr:hover td{
+      color:var(--text-color-dark) !important;
+    }
+
+    body.dark-mode tbody tr:hover td.cash-col{
+      background:var(--cash-bg) !important;
+      color:var(--cash-text) !important;
+    }
+
+  
+    @media print{
+      body{
+        background:#ffffff !important;
+        color:#111827 !important;
+        padding:0 !important;
+      }
+      .container{
+        max-width:100% !important;
+        box-shadow:none !important;
+        border-radius:0 !important;
+      }
+      .top-actions,
+      .btn-row,
+      #stressToggleBtn{
+        display:none !important;
+      }
+      thead th{
+        background:#F7931A !important;
+        color:#111827 !important;
+        -webkit-print-color-adjust:exact;
+        print-color-adjust:exact;
+      }
+      .cash-col{
+        -webkit-print-color-adjust:exact;
+        print-color-adjust:exact;
+      }
+      .calc-tooltip{
+        border-bottom:none !important;
+      }
+      .calc-tooltip::after{
+        display:none !important;
+      }
+      table{
+        page-break-inside:auto;
+      }
+      tr{
+        page-break-inside:avoid;
+        page-break-after:auto;
+      }
+    }
+
+  
+    /* Vega chart tooltip readability, especially in dark mode */
+    .vg-tooltip,
+    body.dark-mode .vg-tooltip{
+      background:#111827 !important;
+      color:#f9fafb !important;
+      border:1px solid #374151 !important;
+      box-shadow:0 8px 24px rgba(0,0,0,.35) !important;
+    }
+
+    .vg-tooltip table,
+    .vg-tooltip tbody,
+    .vg-tooltip tr,
+    .vg-tooltip td,
+    .vg-tooltip th,
+    body.dark-mode .vg-tooltip table,
+    body.dark-mode .vg-tooltip tbody,
+    body.dark-mode .vg-tooltip tr,
+    body.dark-mode .vg-tooltip td,
+    body.dark-mode .vg-tooltip th{
+      background:#111827 !important;
+      color:#f9fafb !important;
+    }
+
+    .vg-tooltip td.key,
+    body.dark-mode .vg-tooltip td.key{
+      color:#9ca3af !important;
+    }
+
+    .vg-tooltip td.value,
+    body.dark-mode .vg-tooltip td.value{
+      color:#f9fafb !important;
+    }
+
+  </style>
 </head>
 <body>
+<div class="container">
+  <div class="top-actions">
+    <button type="button" class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙 Dark mode</button>
+  </div>
+  <h1>BTC Buy-Borrow-Die Calculator</h1>
+  <p>Projection mode (pick a growth %) or Backtest modes (API / CSV / Built-in). Optional stress-test can simulate a one-off drawdown.</p>
+  <div class="resources-box">
+      <h3 style="margin-top:0;color:white;">Resources</h3>
 
-    <nav class="tools-navigation">
-        <h2>Crypto Tools Dashboard</h2>
-        <p>Select an analytical layout or operational utility from your repository:</p>
-        <ul>
-            <li><a href="bitcoin-200w-sma.html">📊 Bitcoin 200W SMA Blueprint</a></li>
-            <li><a href="bitcoin_fx_calculator.html">🧮 Bitcoin FX Calculator</a></li>
-            <li><a href="bitcoin-security-engineer-12-month-guide.html">🔒 Bitcoin Security Engineer Guide</a></li>
-            <li><a href="loan_payoff_calculator_directors_loan (3).html">💼 Directors Loan Payoff Calculator</a></li>
-        </ul>
-    </nav>
+      <p style="text-align:left;color:#d1d5db;">
+          📺
+          <a href="https://www.youtube.com/watch?v=xT_Wqrgd6mo"
+             target="_blank"
+             style="color:#60a5fa;">
+             Watch the YouTube walkthrough
+          </a>
+      </p>
 
+      <p style="text-align:left;color:#d1d5db;">
+          💻
+          <a href="https://github.com/brightsgithub/Crypto_Tools"
+             target="_blank"
+             style="color:#60a5fa;">
+             View source on GitHub
+          </a>
+      </p>
+  </div>
+
+
+  <div class="intro-section">
+    <h3>What is the "Buy, Borrow, Die" Strategy?</h3>
+    <p>The strategy uses an appreciating asset (like Bitcoin) as collateral to borrow cash rather than selling, potentially deferring capital gains tax. Heirs may receive a step-up in basis in some jurisdictions.</p>
+    <ul>
+      <li><strong>Buy:</strong> Accumulate and hold BTC.</li>
+      <li><strong>Borrow:</strong> Take loans against BTC; loan proceeds are not income.</li>
+      <li><strong>Die:</strong> Heirs may sell with stepped-up basis (jurisdiction-dependent).</li>
+    </ul>
+  </div>
+
+  <!-- Inputs -->
+  <div class="row">
+    <div class="col">
+      <div class="input-group">
+        <label for="initialBtc">Initial BTC Amount:</label>
+        <input type="number" id="initialBtc" value="1" min="0" step="any">
+      </div>
+    </div>
+    <div class="col">
+      <div class="input-group">
+        <label for="initialPrice">Initial BTC Price (USD):</label>
+        <input type="number" id="initialPrice" value="100000" min="0" step="any">
+      </div>
+    </div>
+    <div class="col">
+      <div class="input-group">
+        <label for="ltv">Loan-to-Value (LTV) %:</label>
+        <input type="number" id="ltv" value="50" min="1" max="100">
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <div class="input-group">
+        <label for="interestRate">Interest Rate % (per year):</label>
+        <input type="number" id="interestRate" value="10" min="0" step="any">
+      </div>
+    </div>
+    <div class="col">
+      <div class="input-group">
+        <label for="btcGrowth">BTC Growth % (per year):</label>
+        <input type="number" id="btcGrowth" value="20" min="-100" step="any">
+      </div>
+    </div>
+    <div class="col">
+      <div class="input-group">
+        <label for="forecastYears">Forecast Years:</label>
+        <input type="number" id="forecastYears" value="10" min="1">
+      </div>
+    </div>
+  </div>
+
+  <!-- Projection-only: Start Year -->
+  <div class="row" id="startYearRow">
+    <div class="col" style="max-width:240px;">
+      <div class="input-group">
+        <label for="startYear">Start Year (Projection mode)</label>
+        <input type="number" id="startYear" min="2009" step="1">
+      </div>
+    </div>
+  </div>
+
+  <!-- Mode toggles -->
+  <div class="input-group">
+    <div class="mode-row" aria-label="Projection mode">
+      <label data-help="Simulates future Bitcoin prices using your chosen annual BTC growth percentage.">
+        <input type="radio" name="mode" value="projection" checked onchange="toggleMode()"> Growth Projection
+      </label>
+      <label data-help="Fetches historical BTC prices from CoinGecko. If the API fails or is rate-limited, it falls back to built-in prices.">
+        <input type="radio" name="mode" value="backtest_api" onchange="toggleMode()"> API Backtest
+      </label>
+      <label data-help="Uses BTC prices from a CSV file you upload. Best when you want full control over the price data.">
+        <input type="radio" name="mode" value="backtest_file" onchange="toggleMode()"> CSV Backtest
+      </label>
+      <label data-help="Uses bundled historical BTC year-end prices stored directly inside the calculator. No internet needed.">
+        <input type="radio" name="mode" value="backtest_builtin" onchange="toggleMode()"> Built-in Backtest
+      </label>
+    </div>
+  </div>
+
+  <!-- Backtest-specific inputs -->
+  <div id="backtestInputs" style="display:none;">
+    <div class="row">
+      <div class="col">
+        <div class="input-group">
+          <label for="backtestYears">Backtest span (years):</label>
+          <input type="number" id="backtestYears" value="5" min="2" max="20">
+          <p style="margin:6px 0; font-size:.85em; color:#757575; text-align:left;">Uses the most recent N calendar-year closes from the selected source.</p>
+        </div>
+      </div>
+      <div class="col" id="apiKeyGroup" style="display:none;">
+        <div class="input-group">
+          <label for="coingeckoApiKey">CoinGecko Demo API Key (optional):</label>
+          <input type="password" id="coingeckoApiKey" placeholder="Leave blank to try public endpoint">
+          <p style="margin:6px 0; font-size:.85em; color:#757575; text-align:left;">
+            API mode tries CoinGecko first. If it fails because of rate limits/CORS/API key issues, the calculator automatically falls back to built-in year-end BTC prices.
+          </p>
+        </div>
+      </div>
+      <div class="col" id="csvGroup" style="display:none;">
+        <div class="input-group">
+          <label for="priceCsv">Upload CSV (date,price_usd):</label>
+          <input type="file" id="priceCsv" accept=".csv">
+          <p style="margin:6px 0; font-size:.85em; color:#757575; text-align:left;">
+            CSV format: <code>date,price_usd</code> — e.g. <code>2020-12-31,28994.01</code>. Daily/monthly OK; the tool uses the last row per calendar year.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stress-test toggle + panel (hidden by default) -->
+  <div class="btn-row" style="margin-top:6px;">
+    <button class="btn-ghost" id="stressToggleBtn" onclick="toggleStressPanel()" aria-expanded="false" aria-controls="stressPanel">Show Stress Test</button>
+  </div>
+
+  <div id="stressPanel" class="intro-section" style="margin-top:12px; display:none;">
+    <h3>Optional Stress Test</h3>
+    <div class="stress-row">
+      <div class="input-group" style="max-width:220px;">
+        <label for="stressToggle">Enable Stress Test?</label>
+        <select id="stressToggle">
+          <option value="off" selected>No</option>
+          <option value="on">Yes</option>
+        </select>
+      </div>
+      <div class="input-group" style="max-width:240px;">
+        <label for="stressYear">Stress Year Index (1..N)</label>
+        <input type="number" id="stressYear" value="2" min="1" step="1">
+      </div>
+      <div class="input-group" style="max-width:260px;">
+        <label for="stressDrop">Drawdown % (e.g., 40 = -40%)</label>
+        <input type="number" id="stressDrop" value="40" min="0" max="100" step="1">
+      </div>
+      <p style="margin:0;color:#757575;">Applies a one-off drop to that year's BTC price after normal growth/history.</p>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button class="btn-btc" onclick="calculateProjection()">Calculate Projection</button>
+    <button class="btn-secondary" onclick="exportTableCSV()">Export CSV</button>
+    <button class="btn-secondary" onclick="exportPDF()">Export PDF</button>
+    <button class="btn-ghost" onclick="resetCalculator()">Reset Calculator</button>
+  </div>
+  <div id="errorMessage" class="error-message"></div>
+
+  <div id="results">
+    <h2>Yearly Projection</h2>
+    <p>All values USD unless noted. Assumes simple interest accrues on the previous loan, then you refinance at max LTV and extract any remaining liquidity.</p>
+
+    <!-- No wrapper needed; CSS makes this block scrollable in landscape -->
+    <table>
+      <thead>
+        <tr>
+          <th>Year</th>
+          <th>BTC Price</th>
+          <th>BTC % Growth (YoY)</th>
+          <th>BTC Collateral</th>
+          <th>Loan Amount</th>
+          <th>Loan Balance Due</th>
+          <th>Interest Cost</th>
+          <th>Cumulative Interest</th>
+          <th class="cash-col">Cash Extracted</th>
+          <th>Total Cash Extracted</th>
+          <th>Net Cash</th>
+          <th>LTV (actual)</th>
+          <th>Equity</th>
+          <th>Margin Call Price (70% LTV)</th>
+          <th>Liquidation Price (80% LTV)</th>
+          <th>Drop to 80% LTV</th>
+        </tr>
+      </thead>
+      <tbody id="projectionTableBody"></tbody>
+    </table>
+
+    <div id="chart-container"></div>
+  </div>
+
+  <div class="loan-rollover-section" id="rolloverSection">
+    <p><strong>Important:</strong> This model follows the Ledn-style loan structure where interest is simple interest for the loan term, not compounded within the same loan. Future years can still grow debt because each refinance creates a new loan principal.</p>
+
+    <h3>How the Loan Rollover Works</h3>
+    <p>The lender pays off your old loan internally when issuing a new, larger loan; you receive the difference as fresh cash.</p>
+    <ul id="year0List">
+      <li>You have <strong id="year0Btc">1 BTC</strong> at a price of <strong id="year0Price">$100,000</strong>. Your collateral is worth <strong id="year0Collateral">$100,000</strong>.</li>
+      <li>With a <strong id="year0Ltv">50%</strong> LTV, you take out a loan for <strong id="year0Loan">$50,000</strong>. This is your initial cash extracted.</li>
+    </ul>
+    <p><strong>Loan Rollover (Year 1):</strong></p>
+    <p>Using your inputs for BTC growth and interest rate:</p>
+    <ul id="year1List">
+      <li>Your BTC is now worth <strong id="year1Collateral">$120,000</strong> (<span id="year1PriceCalc">$100,000 × 1.20</span>). Your new maximum borrowing capacity is <strong id="year1MaxLoan">$60,000</strong> (<span id="year1MaxLoanCalc">$120,000 × 0.50</span>).</li>
+      <li>The balance due on your old loan is <strong id="year1BalanceDue">$55,000</strong> (<span id="year1BalanceCalc">$50,000 principal + $5,000 interest</span>).</li>
+      <li>Instead of you paying the <span id="year1Balance">$55,000</span>, the lender issues a new loan of <span id="year1NewLoan">$60,000</span> and uses <span id="year1Used">$55,000</span> to pay off the old one <a class="more-info-link" href="#" onclick="toggleDetails(event)">More Info</a></li>
+      <div id="detailsContainer" style="display:none;">
+        <p>The payout happens internally: the old balance is settled from the proceeds of the new loan, the new loan is booked to your account, and the remainder is disbursed to you as cash.</p>
+      </div>
+      <li>The remaining <strong id="year1Cash">$5,000</strong> (<span id="year1CashCalc">$60,000 - $55,000</span>) is fresh, tax-free cash.</li>
+    </ul>
+  </div>
+
+  <div class="calculations-section">
+    <h3>How the Table Values are Calculated</h3>
+    <p><strong>BTC Price:</strong> Prior Price × (1 + Annual Growth %) — or the backtested year-end price.</p>
+    <p><strong>BTC Collateral:</strong> Initial BTC Amount × Current BTC Price</p>
+    <p><strong>Loan Amount:</strong> Current BTC Collateral × LTV %</p>
+    <p><strong>Loan Balance Due:</strong> Previous outstanding loan + simple interest for the year. If a refinance fails, unresolved debt carries forward.</p>
+    <p><strong>Interest Cost:</strong> Previous Loan × Interest %</p>
+    <p><strong>Cash Extracted:</strong> New Loan − Loan Balance Due, after the previous loan and simple interest are repaid (never below $0 in the displayed table).</p>
+    <p><strong>Total Cash Extracted:</strong> Running sum of positive Cash Extracted amounts</p>
+    <p><strong>Cumulative Interest:</strong> Running sum of yearly Interest Cost</p>
+    <p><strong>Net Cash:</strong> Total Cash Extracted − Cumulative Interest</p>
+    <p><strong>LTV (actual):</strong> Outstanding loan ÷ BTC Collateral. If refinance fails, this uses carried debt rather than target LTV.</p>
+    <p><strong>Equity:</strong> BTC Collateral − New Loan</p>
+    <p><strong>Margin Call Price (70% LTV):</strong> New Loan ÷ (Initial BTC Amount × 0.70)</p>
+    <p><strong>Liquidation Price (80% LTV):</strong> New Loan ÷ (Initial BTC Amount × 0.80)</p>
+  </div>
+
+  <div class="calculations-section">
+    <h3>Loan Refinance Conditions</h3>
+    <p>For a rollover to succeed and provide fresh cash, these generally must hold:</p>
+    <ul>
+      <li><strong>Capacity Check:</strong> <em>New Loan Capacity</em> ≥ <em>Old Loan Balance Due</em>. If not, unresolved debt carries forward.</li>
+      <li><strong>LTV Within Limits:</strong> New Loan ÷ BTC Collateral ≤ Lender’s max LTV (e.g., 50%).</li>
+      <li><strong>Positive Equity:</strong> BTC Collateral − New Loan &gt; 0 (maintains a cushion).</li>
+      <li><strong>Rate vs Growth:</strong> Over time, BTC growth should exceed the interest rate.</li>
+      <li><strong>No Breached Thresholds:</strong> Not already in margin call / liquidation zone.</li>
+      <li><strong>Lender Availability:</strong> Lender supports refinancing; fees/terms acceptable.</li>
+      <li><strong>Operational:</strong> Account KYC/AML and custody status are in good standing.</li>
+    </ul>
+    <h4 style="margin-top:16px;">Quick Math</h4>
+    <p><strong>New Loan Capacity</strong> = (Initial BTC Amount × Current BTC Price) × LTV<br>
+       <strong>Old Loan Balance Due</strong> = Previous Loan + (Previous Loan × Interest %)</p>
+    <p style="margin:6px 0 0;"><code>(BTC Collateral × LTV) − [Previous Loan + (Previous Loan × Interest %)] &gt; 0</code> ⇒ refinance yields fresh cash.</p>
+  </div>
+</div>
+
+<script>
+/* -------------------- BUILT-IN YEAR-END SERIES (2011 → 2024) -------------------- */
+const BUILTIN_YEAR_END = [
+  {year:2011, price:4.61},{year:2012, price:13.53},{year:2013, price:754.01},
+  {year:2014, price:320.19},{year:2015, price:430.57},{year:2016, price:963.74},
+  {year:2017, price:14156.00},{year:2018, price:3746.00},{year:2019, price:7201.00},
+  {year:2020, price:28977.00},{year:2021, price:46266.00},{year:2022, price:16536.00},
+  {year:2023, price:42233.00},{year:2024, price:93647.00}
+];
+function getBuiltInYearEndPrices(spanYears){
+  const arr = BUILTIN_YEAR_END.slice();
+  const n = Math.min(Math.max(2, spanYears|0), arr.length);
+  return arr.slice(-n);
+}
+
+/* -------------------- MODE TOGGLING -------------------- */
+function getMode(){ return document.querySelector('input[name="mode"]:checked').value; }
+function toggleMode(){
+  const mode = getMode();
+  const isProjection = mode === 'projection';
+  const isBacktest = !isProjection;
+  const isFile = mode === 'backtest_file';
+  const isApi = mode === 'backtest_api';
+
+  document.getElementById('backtestInputs').style.display = isBacktest ? 'block' : 'none';
+  document.getElementById('csvGroup').style.display = isFile ? 'block' : 'none';
+  const apiKeyGroup = document.getElementById('apiKeyGroup');
+  if(apiKeyGroup) apiKeyGroup.style.display = isApi ? 'block' : 'none';
+  document.getElementById('startYearRow').style.display = isProjection ? 'flex' : 'none';
+
+  // Disable growth and initial price in any backtest
+  document.getElementById('btcGrowth').disabled = isBacktest;
+  document.getElementById('initialPrice').disabled = isBacktest;
+  [document.getElementById('btcGrowth'), document.getElementById('initialPrice')].forEach(el=>{
+    el.style.backgroundColor = isBacktest ? '#f3f4f6' : '';
+  });
+}
+
+/* -------------------- STRESS TEST SHOW/HIDE -------------------- */
+function toggleStressPanel(){
+  const panel = document.getElementById('stressPanel');
+  const btn = document.getElementById('stressToggleBtn');
+  const isHidden = panel.style.display === 'none' || panel.style.display === '';
+  panel.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? 'Hide Stress Test' : 'Show Stress Test';
+  btn.setAttribute('aria-expanded', String(isHidden));
+}
+
+/* -------------------- BACKTEST HELPERS -------------------- */
+function yearEndSeriesFromMarketChart(pricesArray){
+  const byYear = new Map();
+  for(const [t,p] of pricesArray){
+    const y = new Date(t).getUTCFullYear();
+    byYear.set(y, p); // last price encountered for that year
+  }
+  const years = Array.from(byYear.keys()).sort((a,b)=>a-b);
+  return years.map(y => ({year:y, price: byYear.get(y)}));
+}
+
+async function fetchYearEndPricesFromAPI(years){
+  const days = Math.min(365 * years + 10, 3650); // public market_chart endpoint has practical history/rate limits
+  const apiKey = (document.getElementById('coingeckoApiKey')?.value || '').trim();
+
+  const headers = apiKey ? { 'x-cg-demo-api-key': apiKey } : {};
+
+  const endpoints = [
+    `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
+    `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(Date.now()/1000 - days*86400)}&to=${Math.floor(Date.now()/1000)}`
+  ];
+
+  let lastError = null;
+
+  for(const url of endpoints){
+    try{
+      const resp = await fetch(url, { headers });
+      if(!resp.ok){
+        lastError = new Error(`CoinGecko API returned ${resp.status}`);
+        continue;
+      }
+
+      const json = await resp.json();
+      if(!json.prices || !Array.isArray(json.prices) || json.prices.length === 0){
+        lastError = new Error('CoinGecko returned no price data');
+        continue;
+      }
+
+      return yearEndSeriesFromMarketChart(json.prices);
+    }catch(e){
+      lastError = e;
+    }
+  }
+
+  throw lastError || new Error('CoinGecko API failed');
+}
+
+async function parseCsvFileToYearEndSeries(file){
+  const text = await file.text();
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(',').map(s=>s.trim().toLowerCase());
+  const dateIdx = header.indexOf('date');
+  const priceIdx = header.indexOf('price_usd');
+  if(dateIdx===-1 || priceIdx===-1) throw new Error('CSV must have columns: date,price_usd');
+
+  const byYear = new Map();
+  for(let i=1;i<lines.length;i++){
+    const cols = lines[i].split(',');
+    if(cols.length <= Math.max(dateIdx, priceIdx)) continue;
+    const d = new Date(cols[dateIdx].trim());
+    if(isNaN(d)) continue;
+    const y = d.getUTCFullYear();
+    const p = parseFloat(cols[priceIdx]);
+    if(!isFinite(p)) continue;
+    byYear.set(y, p); // keep last for that year
+  }
+  const years = Array.from(byYear.keys()).sort((a,b)=>a-b);
+  return years.map(y => ({year:y, price: byYear.get(y)}));
+}
+
+/* -------------------- CALCULATE WRAPPER -------------------- */
+async function calculateProjection(){
+  const mode = getMode();
+  const backtestYears = parseInt(document.getElementById('backtestYears')?.value || '0', 10);
+  const fileInput = document.getElementById('priceCsv');
+  const err = document.getElementById('errorMessage');
+  err.textContent = '';
+
+  let series = null; // [{year, price}, ...]
+  try{
+    if(mode === 'backtest_api'){
+      if(!(backtestYears > 1)) throw new Error('Enter a backtest span of at least 2 years.');
+
+      try{
+        series = await fetchYearEndPricesFromAPI(backtestYears);
+      }catch(apiError){
+        console.warn('CoinGecko API failed; falling back to built-in prices:', apiError);
+        series = getBuiltInYearEndPrices(backtestYears);
+        err.textContent = 'CoinGecko API failed or was rate-limited, so built-in BTC year-end prices were used instead.';
+      }
+    } else if (mode === 'backtest_file'){
+      const f = fileInput?.files?.[0];
+      if(!f) throw new Error('Please choose a CSV file.');
+      series = await parseCsvFileToYearEndSeries(f);
+      if(backtestYears>1 && series.length>backtestYears){
+        series = series.slice(-backtestYears);
+      }
+    } else if (mode === 'backtest_builtin'){
+      if(!(backtestYears > 1)) throw new Error('Enter a backtest span of at least 2 years.');
+      series = getBuiltInYearEndPrices(backtestYears);
+    }
+    if(series && series.length < 2){
+      throw new Error('Not enough historical points for backtest (need ≥ 2).');
+    }
+    if(series){
+      document.getElementById('initialPrice').value = Math.round(series[0].price);
+    }
+  } catch(e){
+    if(mode !== 'projection'){
+      err.textContent = e.message || 'Backtest failed.';
+      return;
+    }
+  }
+
+  const effectiveYears = series ? (series.length - 1) : parseInt(document.getElementById('forecastYears').value,10);
+  let startYear = parseInt(document.getElementById('startYear').value, 10);
+  if(!series){
+    if(!isFinite(startYear)) startYear = new Date().getUTCFullYear();
+  } else {
+    startYear = series[0].year;
+  }
+  runProjection(series, effectiveYears, startYear);
+}
+
+/* -------------------- CORE PROJECTION (supports backtest & stress-test) -------------------- */
+function runProjection(series, effectiveYears, startYear){
+  const initialBtc = parseFloat(document.getElementById('initialBtc').value);
+  const initialPriceInput = parseFloat(document.getElementById('initialPrice').value);
+  const ltv = parseFloat(document.getElementById('ltv').value)/100;
+  const interestRate = parseFloat(document.getElementById('interestRate').value)/100;
+  const btcGrowth = parseFloat(document.getElementById('btcGrowth').value)/100;
+
+  const stressOn = document.getElementById('stressToggle').value === 'on';
+  const stressYearIndex = parseInt(document.getElementById('stressYear').value,10);
+  const stressDropPct = parseFloat(document.getElementById('stressDrop').value)/100;
+
+  const errorMessageDiv = document.getElementById('errorMessage');
+  const tableBody = document.getElementById('projectionTableBody');
+
+  const marginCallRatio = 0.70;
+  const liquidationRatio = 0.80;
+
+  tableBody.innerHTML = '';
+  errorMessageDiv.textContent = '';
+
+  if ([initialBtc,ltv,interestRate].some(v=>isNaN(v)) || initialBtc<=0 || ltv<=0 || ltv>1){
+    errorMessageDiv.textContent = 'Please enter valid positive numbers for initial BTC and LTV (1–100%).';
+    return;
+  }
+  if(!series){
+    if(isNaN(initialPriceInput) || initialPriceInput<=0 || isNaN(btcGrowth) || isNaN(effectiveYears) || effectiveYears<=0){
+      errorMessageDiv.textContent = 'Please enter valid Initial Price, Growth %, Forecast Years.';
+      return;
+    }
+  }
+
+  const fmt$  = v => `$${v.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+  const fmtPct = v => `${(v*100).toFixed(0)}%`;
+  const fmtPct1 = v => `${(v*100).toFixed(1)}%`;
+
+  const tip = (value, text) => {
+    const safe = String(text).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<span tabindex="0" class="calc-tooltip" data-tooltip="${safe}">${value}</span>`;
+  };
+  const btcLabel = `${initialBtc.toLocaleString(undefined,{maximumFractionDigits:8})} BTC`;
+  const ltvLabel = fmtPct(ltv);
+  const interestLabel = fmtPct1(interestRate);
+
+
+  // Build year list and prices
+  let years = [];
+  let prices = [];
+  if(series){
+    years = series.map(s=>s.year);
+    prices = series.map(s=>s.price);
+  } else {
+    for(let i=0;i<=effectiveYears;i++){ years.push(startYear + i); }
+    prices = new Array(effectiveYears+1);
+    prices[0] = initialPriceInput;
+    for(let i=1;i<=effectiveYears;i++){
+      prices[i] = prices[i-1] * (1 + btcGrowth);
+    }
+  }
+
+  // Apply stress test after baseline price for that index-year
+  if (stressOn && stressYearIndex>=1 && stressYearIndex<prices.length) {
+    prices[stressYearIndex] = prices[stressYearIndex] * (1 - stressDropPct);
+  }
+
+  // Compute YoY growth
+  const growthYoY = prices.map((p,i)=> i===0 ? null : (prices[i-1] ? (p/prices[i-1]-1) : null));
+
+  // Year 0 (initial)
+  const initialPrice = prices[0];
+  const year0Collateral = initialBtc * initialPrice;
+  const year0Loan = year0Collateral * ltv;
+
+  // Explainer updates
+  const setText = (id, val) => { const el=document.getElementById(id); if(el) el.textContent = val; };
+  setText('year0Btc', initialBtc.toFixed(2) + ' BTC');
+  setText('year0Price', fmt$(initialPrice));
+  setText('year0Collateral', fmt$(year0Collateral));
+  setText('year0Ltv', fmtPct(ltv));
+  setText('year0Loan', fmt$(year0Loan));
+
+  const year1Price = prices[1] ?? prices[0];
+  const year1Collateral = initialBtc * year1Price;
+  const year1MaxLoan = year1Collateral * ltv;
+  const year1BalanceDue = year0Loan * (1 + interestRate);
+  const year1Cash = year1MaxLoan - year1BalanceDue;
+  setText('year1Collateral', fmt$(year1Collateral));
+  setText('year1PriceCalc', `${fmt$(initialPrice)} → ${fmt$(year1Price)} ${series ? '(historical)' : `(growth ${fmtPct(btcGrowth)})`}${(document.getElementById('stressPanel').style.display!=='none' && stressOn && stressYearIndex===1)?' − stress':''}`);
+  setText('year1MaxLoan', fmt$(year1MaxLoan));
+  setText('year1MaxLoanCalc', `${fmt$(year1Collateral)} × ${fmtPct(ltv)}`);
+  setText('year1BalanceDue', fmt$(year1BalanceDue));
+  setText('year1BalanceCalc', `${fmt$(year0Loan)} principal + ${fmt$(year0Loan*interestRate)} interest`);
+  setText('year1Balance', fmt$(year1BalanceDue));
+  setText('year1NewLoan', fmt$(year1MaxLoan));
+  setText('year1Used', fmt$(year1BalanceDue));
+  setText('year1Cash', fmt$(Math.max(0,year1Cash)));
+  setText('year1CashCalc', `${fmt$(year1MaxLoan)} - ${fmt$(year1BalanceDue)}`);
+
+  // Table & chart
+  const chartData = [];
+
+  let btcPrice = prices[0];
+  let btcValue = initialBtc * btcPrice;
+  let loanAmount = btcValue * ltv;
+  let totalCashExtracted = loanAmount;
+  let cumulativeInterest = 0;
+
+  const initialMarginCallPrice = loanAmount/(initialBtc*0.70);
+  const initialLiquidationPrice = loanAmount/(initialBtc*0.80);
+  const initialEquity = btcValue - loanAmount;
+  const initialDropTo80 = Math.max(0, 1 - (initialLiquidationPrice / btcPrice));
+
+  // Row 0
+  let row = document.getElementById('projectionTableBody').insertRow();
+  row.innerHTML = `
+    <td data-label="Year">${years[0]}</td>
+    <td data-label="BTC Price">${tip(fmt$(btcPrice), `The Bitcoin price used for ${years[0]} is ${fmt$(btcPrice)}.`)}</td>
+    <td data-label="BTC % Growth (YoY)">—</td>
+    <td data-label="BTC Collateral">${tip(fmt$(btcValue), `Your Bitcoin collateral value is approximately ${fmt$(btcValue)}\n(${btcLabel} × ${fmt$(btcPrice)} BTC price).`)}</td>
+    <td data-label="Loan Amount">${tip(fmt$(loanAmount), `Your maximum loan amount is approximately ${fmt$(loanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`)}</td>
+    <td data-label="Loan Balance Due">N/A</td>
+    <td data-label="Interest Cost">${tip(fmt$(0), `No interest has accrued yet because this is the starting year.`)}</td>
+    <td data-label="Cumulative Interest">${tip(fmt$(0), `Total interest paid/accrued so far is $0 in the starting year.`)}</td>
+    <td data-label="Cash Extracted" class="cash-col">${tip(fmt$(loanAmount), `Your initial cash extracted is approximately ${fmt$(loanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`)}</td>
+    <td data-label="Total Cash Extracted">${tip(fmt$(totalCashExtracted), `Your total cash extracted so far is approximately ${fmt$(totalCashExtracted)}.\nThis starts with the initial loan amount.`)}</td>
+    <td data-label="Net Cash">${tip(fmt$(totalCashExtracted - cumulativeInterest), `Your net cash so far is approximately ${fmt$(totalCashExtracted - cumulativeInterest)}\n(${fmt$(totalCashExtracted)} total cash extracted − ${fmt$(cumulativeInterest)} cumulative interest).`)}</td>
+    <td data-label="LTV (actual)">${tip(fmtPct(loanAmount / btcValue), `Your actual loan-to-value ratio is ${fmtPct(loanAmount / btcValue)}\n(${fmt$(loanAmount)} loan ÷ ${fmt$(btcValue)} collateral).`)}</td>
+    <td data-label="Equity">${tip(fmt$(initialEquity), `After subtracting the loan balance, your remaining Bitcoin equity is approximately ${fmt$(initialEquity)}\n(${fmt$(btcValue)} collateral − ${fmt$(loanAmount)} loan balance).`)}</td>
+    <td data-label="Margin Call Price">${tip(fmt$(initialMarginCallPrice), `Your loan would reach the margin-call threshold if Bitcoin falls to approximately ${fmt$(initialMarginCallPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 70% margin-call LTV).)`)}</td>
+    <td data-label="Liquidation Price">${tip(fmt$(initialLiquidationPrice), `Your loan would reach the liquidation threshold if Bitcoin falls to approximately ${fmt$(initialLiquidationPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 80% liquidation LTV).)`)}</td>
+    <td data-label="Drop to 80% LTV">${tip(fmtPct1(initialDropTo80), `Bitcoin could fall by approximately ${fmtPct1(initialDropTo80)} from ${fmt$(btcPrice)} before reaching the 80% liquidation threshold.`)}</td>
+  `;
+
+  chartData.push({Year: years[0], CashExtracted: loanAmount, CumulativeInterest: 0, NetCash: totalCashExtracted - cumulativeInterest});
+
+  // Subsequent years
+  for(let i=1; i<years.length; i++){
+    const year = years[i];
+    btcPrice = prices[i];
+
+    // Persistent debt model:
+    // If a refinance fails, the old debt does NOT magically reset to the lower loan capacity.
+    // The outstanding balance carries forward and continues to accrue simple interest next year.
+    const prevLoanPrincipal = loanAmount;
+    const interestCost = prevLoanPrincipal * interestRate;
+    const prevLoanBalanceDue = prevLoanPrincipal + interestCost;
+    cumulativeInterest += interestCost;
+
+    btcValue = initialBtc * btcPrice;
+    const newLoanCapacity = btcValue * ltv;
+    const cashExtractedRaw = newLoanCapacity - prevLoanBalanceDue;
+    const refinanceSucceeded = cashExtractedRaw >= 0;
+
+    const cashExtracted = refinanceSucceeded ? cashExtractedRaw : 0;
+
+    // If refinance succeeds, debt resets to the new max loan.
+    // If refinance fails, unresolved debt carries forward.
+    loanAmount = refinanceSucceeded ? newLoanCapacity : prevLoanBalanceDue;
+
+    if (cashExtracted > 0) totalCashExtracted += cashExtracted;
+
+    const marginCallPrice = loanAmount / (initialBtc * 0.70);
+    const liquidationPrice = loanAmount / (initialBtc * 0.80);
+    const equity = btcValue - loanAmount;
+    const ltvActual = loanAmount / btcValue;
+    const dropTo80 = Math.max(0, 1 - (liquidationPrice / btcPrice));
+    const yoy = growthYoY[i];
+
+    const loanAmountLabel = refinanceSucceeded ? fmt$(loanAmount) : `${fmt$(loanAmount)} carried`;
+    const loanAmountTip = refinanceSucceeded
+      ? `Your refinanced loan amount is approximately ${fmt$(loanAmount)}\n(${fmt$(btcValue)} collateral × ${ltvLabel} loan-to-value ratio).`
+      : `Refinance failed because the new borrowing capacity was only ${fmt$(newLoanCapacity)}, but the balance due was ${fmt$(prevLoanBalanceDue)}.\nThe unresolved debt carries forward as ${fmt$(loanAmount)}.`;
+
+    const cashTip = refinanceSucceeded
+      ? `After refinancing and repaying the previous loan balance, you could extract approximately ${fmt$(cashExtracted)} in additional cash\n(${fmt$(newLoanCapacity)} new loan capacity − ${fmt$(prevLoanBalanceDue)} existing loan balance).`
+      : `No additional cash can be extracted this year because the loan balance plus simple interest is higher than the new borrowing capacity.\n(${fmt$(newLoanCapacity)} new loan capacity − ${fmt$(prevLoanBalanceDue)} existing loan balance).\nThe unresolved debt carries forward.`;
+
+    const ltvTip = refinanceSucceeded
+      ? `Your actual loan-to-value ratio is ${fmtPct(ltvActual)}\n(${fmt$(loanAmount)} loan ÷ ${fmt$(btcValue)} collateral).`
+      : `Because the refinance failed, actual LTV is based on the carried debt, not the target 50% refinance.\nActual LTV is ${fmtPct(ltvActual)}\n(${fmt$(loanAmount)} carried debt ÷ ${fmt$(btcValue)} collateral).`;
+
+    const r = document.getElementById('projectionTableBody').insertRow();
+    r.innerHTML = `
+      <td data-label="Year">${year}</td>
+      <td data-label="BTC Price">${tip(fmt$(btcPrice), `The Bitcoin price used for ${year} is ${fmt$(btcPrice)}.`)}</td>
+      <td data-label="BTC % Growth (YoY)">${tip(yoy==null?'—':fmtPct1(yoy), yoy==null ? `No year-on-year growth is calculated for the starting year.` : `Bitcoin changed by approximately ${fmtPct1(yoy)} compared with the previous year.\n(${fmt$(btcPrice)} current price compared with ${fmt$(prices[i-1])} previous price).`)}</td>
+      <td data-label="BTC Collateral">${tip(fmt$(btcValue), `Your Bitcoin collateral value is approximately ${fmt$(btcValue)}\n(${btcLabel} × ${fmt$(btcPrice)} BTC price).`)}</td>
+      <td data-label="Loan Amount">${tip(loanAmountLabel, loanAmountTip)}</td>
+      <td data-label="Loan Balance Due">${tip(fmt$(prevLoanBalanceDue), `After adding simple yearly interest, your outstanding loan balance becomes approximately ${fmt$(prevLoanBalanceDue)}\n(${fmt$(prevLoanPrincipal)} previous loan + simple interest).`)}</td>
+      <td data-label="Interest Cost">${tip(fmt$(interestCost), `Your yearly interest cost is approximately ${fmt$(interestCost)}\n(${fmt$(prevLoanPrincipal)} previous loan balance × ${interestLabel} interest rate).`)}</td>
+      <td data-label="Cumulative Interest">${tip(fmt$(cumulativeInterest), `Your cumulative interest so far is approximately ${fmt$(cumulativeInterest)}.\nThis is the running total of simple interest costs across each yearly loan period.`)}</td>
+      <td data-label="Cash Extracted" class="cash-col">${tip(fmt$(cashExtracted), cashTip)}</td>
+      <td data-label="Total Cash Extracted">${tip(fmt$(totalCashExtracted), `Your total cash extracted so far is approximately ${fmt$(totalCashExtracted)}.\nThis starts with the initial loan amount.`)}</td>
+      <td data-label="Net Cash">${tip(fmt$(totalCashExtracted - cumulativeInterest), `Your net cash so far is approximately ${fmt$(totalCashExtracted - cumulativeInterest)}\n(${fmt$(totalCashExtracted)} total cash extracted − ${fmt$(cumulativeInterest)} cumulative interest).`)}</td>
+      <td data-label="LTV (actual)">${tip(fmtPct(ltvActual), ltvTip)}</td>
+      <td data-label="Equity">${tip(fmt$(equity), `After subtracting the outstanding loan balance, your remaining Bitcoin equity is approximately ${fmt$(equity)}\n(${fmt$(btcValue)} collateral − ${fmt$(loanAmount)} outstanding loan balance).`)}</td>
+      <td data-label="Margin Call Price">${tip(fmt$(marginCallPrice), `Your loan would reach the margin-call threshold if Bitcoin falls to approximately ${fmt$(marginCallPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 70% margin-call LTV).)`)}</td>
+      <td data-label="Liquidation Price">${tip(fmt$(liquidationPrice), `Your loan would reach the liquidation threshold if Bitcoin falls to approximately ${fmt$(liquidationPrice)}.\n(${fmt$(loanAmount)} loan ÷ (${btcLabel} × 80% liquidation LTV).)`)}</td>
+      <td data-label="Drop to 80% LTV">${tip(fmtPct1(dropTo80), `Bitcoin could fall by approximately ${fmtPct1(dropTo80)} from ${fmt$(btcPrice)} before reaching the 80% liquidation threshold.`)}</td>
+    `;
+    if (!refinanceSucceeded || ltvActual >= marginCallRatio) {
+      r.classList.add('liquidation-row');
+      r.title = !refinanceSucceeded
+        ? "Warning: Refinance failed. Unresolved debt has carried forward."
+        : "Warning: Actual LTV is at or above the margin-call threshold.";
+    }
+
+    chartData.push({
+      Year: year,
+      CashExtracted: cashExtracted,
+      CumulativeInterest: cumulativeInterest,
+      NetCash: totalCashExtracted - cumulativeInterest
+    });
+  }
+
+  if (document.getElementById('projectionTableBody').querySelectorAll('.liquidation-row').length > 0) {
+    errorMessageDiv.textContent = 'Warning: A potential refinance failure, margin-call risk, or liquidation risk is highlighted in red.';
+  }
+
+  const domain = (series ? series.map(s=>String(s.year)) : Array.from({length:effectiveYears+1},(_,i)=>String(startYear+i)));
+
+  // Determine compact chart height for landscape phones
+  const shortLandscape = window.matchMedia('(orientation: landscape) and (max-height: 480px)').matches;
+  const chartHeight = shortLandscape ? 220 : 320;
+
+  const chartSpec = {
+    "$schema":"https://vega.github.io/schema/vega-lite/v5.json",
+    "width":"container","height":chartHeight,"autosize":{"type":"fit","resize":true},
+    "data":{"values":chartData},
+    "resolve":{"scale":{"y":"shared"}},
+    "layer":[
+      {
+        "mark":{"type":"bar"},
+        "encoding":{
+          "x":{"field":"Year","type":"ordinal","title":"Year","sort":domain},
+          "y":{"field":"CashExtracted","type":"quantitative","title":"USD"},
+          "tooltip":[{"field":"Year","type":"ordinal"},{"field":"CashExtracted","type":"quantitative","format":"$,.0f"}],
+          "color":{"value":"#3949ab"}
+        }
+      },
+      {
+        "mark":{"type":"line","point":true},
+        "encoding":{
+          "x":{"field":"Year","type":"ordinal","sort":domain},
+          "y":{"field":"CumulativeInterest","type":"quantitative"},
+          "color":{"value":"#b91c1c"},
+          "tooltip":[{"field":"Year","type":"ordinal"},{"field":"CumulativeInterest","type":"quantitative","format":"$,.0f"}]
+        }
+      },
+      {
+        "mark":{"type":"line","point":true},
+        "encoding":{
+          "x":{"field":"Year","type":"ordinal","sort":domain},
+          "y":{"field":"NetCash","type":"quantitative"},
+          "color":{"value":"#10b981"},
+          "tooltip":[{"field":"Year","type":"ordinal"},{"field":"NetCash","type":"quantitative","format":"$,.0f"}]
+        }
+      }
+    ],
+    "title":{"text":"Cash Extracted (bar) vs Cumulative Interest & Net Cash (lines)","font":"Roboto","fontSize":14,"color":"#1a237e"},
+    "config":{"view":{"stroke":null},"axis":{"grid":true,"gridColor":"#e0e0e0","labelFont":"Roboto","titleFont":"Roboto"}}
+  };
+
+  const chartContainer = document.getElementById('chart-container');
+  chartContainer.innerHTML = '';
+  vegaEmbed("#chart-container", chartSpec, {actions:false, renderer:"svg"}).catch(err=>{
+    console.error('Vega-Lite error:', err);
+    errorMessageDiv.textContent = 'Error rendering chart. See console.';
+  });
+}
+
+
+/* -------------------- EXPORT PDF -------------------- */
+function exportPDF(){
+  const errorMessageDiv = document.getElementById('errorMessage');
+
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    if(errorMessageDiv) errorMessageDiv.textContent = 'PDF library unavailable. Falling back to browser print.';
+    window.print();
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  const filename = `bbb_projection_${stamp}.pdf`;
+
+  const fmtInput = id => {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+  };
+
+  const modeEl = document.querySelector('input[name="mode"]:checked');
+  const mode = modeEl ? modeEl.parentElement.textContent.trim() : 'Projection';
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(26, 35, 126);
+  doc.text('BTC Buy-Borrow-Die Calculator Report', margin, 14);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 20);
+  doc.text('This report is for modelling/education only and is not financial advice.', margin, 25);
+
+  const inputs = [
+    ['Initial BTC Amount', fmtInput('initialBtc')],
+    ['Initial BTC Price (USD)', fmtInput('initialPrice')],
+    ['Loan-to-Value (LTV) %', fmtInput('ltv')],
+    ['Interest Rate % (per year)', fmtInput('interestRate')],
+    ['BTC Growth % (per year)', fmtInput('btcGrowth')],
+    ['Forecast Years', fmtInput('forecastYears')],
+    ['Start Year', fmtInput('startYear')],
+    ['Mode', mode]
+  ];
+
+  doc.autoTable({
+    startY: 31,
+    head: [['Input', 'Value']],
+    body: inputs,
+    theme: 'grid',
+    margin: { left: margin, right: margin },
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [247, 147, 26], textColor: [17, 24, 39], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 60 },
+      1: { cellWidth: 70 }
+    }
+  });
+
+  const table = document.querySelector('table');
+  if(!table){
+    if(errorMessageDiv) errorMessageDiv.textContent = 'No projection table found to export.';
+    return;
+  }
+
+  const fullHeaders = Array.from(table.querySelectorAll('thead th')).map(th =>
+    th.textContent.replace(/\s+/g, ' ').trim()
+  );
+
+  // Shorter PDF-only headings so the table fits cleanly on one landscape page.
+  // The HTML table headings remain unchanged.
+  const headers = fullHeaders.map(h => ({
+    'BTC % Growth (YoY)': 'BTC Growth',
+    'BTC Collateral': 'Collateral',
+    'Loan Amount': 'Loan',
+    'Loan Balance Due': 'Balance Due',
+    'Interest Cost': 'Interest',
+    'Cumulative Interest': 'Cum. Interest',
+    'Cash Extracted': 'Cash Extracted',
+    'Total Cash Extracted': 'Total Cash',
+    'Net Cash': 'Net Cash',
+    'LTV (actual)': 'LTV',
+    'Margin Call Price (70% LTV)': 'Margin Call',
+    'Liquidation Price (80% LTV)': 'Liquidation',
+    'Drop to 80% LTV': '80% Drop'
+  }[h] || h));
+
+  const rows = Array.from(table.querySelectorAll('tbody tr')).map(tr =>
+    Array.from(tr.querySelectorAll('td')).map(td =>
+      td.textContent.replace(/\s+/g, ' ').trim()
+    )
+  );
+
+  const tableStartY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 35) + 8;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(26, 35, 126);
+  doc.text('Yearly Projection', margin, tableStartY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(90, 90, 90);
+  const note = 'All values USD unless noted. Assumes simple interest accrues on the previous loan, then you refinance at max LTV and extract any remaining liquidity.';
+  doc.text(doc.splitTextToSize(note, pageWidth - margin * 2), margin, tableStartY + 6);
+
+  doc.autoTable({
+    startY: tableStartY + 13,
+    head: [headers],
+    body: rows,
+    theme: 'striped',
+    margin: { left: 3, right: 3 },
+    tableWidth: 'auto',
+    styles: {
+      fontSize: 5.1,
+      cellPadding: 0.9,
+      overflow: 'linebreak',
+      valign: 'middle',
+      minCellHeight: 4
+    },
+    headStyles: {
+      fillColor: [247, 147, 26],
+      textColor: [17, 24, 39],
+      fontStyle: 'bold',
+      fontSize: 5.2,
+      cellPadding: 0.9
+    },
+    alternateRowStyles: {
+      fillColor: [240, 244, 248]
+    },
+    columnStyles: {
+      0: { cellWidth: 11 },   // Year
+      1: { cellWidth: 16 },   // BTC Price
+      2: { cellWidth: 15 },   // Growth
+      3: { cellWidth: 18 },   // Collateral
+      4: { cellWidth: 15 },   // Loan
+      5: { cellWidth: 18 },   // Balance Due
+      6: { cellWidth: 15 },   // Interest
+      7: { cellWidth: 18 },   // Cum Interest
+      8: { cellWidth: 18, fillColor: [255, 243, 214], textColor: [138, 75, 0], fontStyle: 'bold' },
+      9: { cellWidth: 18 },   // Total Cash
+      10: { cellWidth: 15 },  // Net Cash
+      11: { cellWidth: 10 },  // LTV
+      12: { cellWidth: 16 },  // Equity
+      13: { cellWidth: 18 },  // Margin Call
+      14: { cellWidth: 18 },  // Liquidation
+      15: { cellWidth: 14 }   // 80% Drop
+    },
+    horizontalPageBreak: false,
+    didDrawPage: function(data){
+      const pageNumber = doc.internal.getNumberOfPages();
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Page ${pageNumber}`, pageWidth - margin - 14, doc.internal.pageSize.getHeight() - 6);
+    }
+  });
+
+  doc.addPage('a4', 'portrait');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(26, 35, 126);
+  doc.text('How the Table Values are Calculated', 14, 18);
+
+  const explanationRows = [
+    ['BTC Price', 'Prior Price × (1 + Annual Growth %) — or the backtested year-end price.'],
+    ['BTC Collateral', 'Initial BTC Amount × Current BTC Price.'],
+    ['Loan Amount', 'Current BTC Collateral × LTV %.'],
+    ['Loan Balance Due', 'Previous outstanding loan + simple interest for the year. If refinance fails, unresolved debt carries forward.'],
+    ['Interest Cost', 'Previous Loan × Interest %.'],
+    ['Cash Extracted', 'New Loan - Loan Balance Due, after the previous loan and simple interest are repaid.'],
+    ['Total Cash Extracted', 'Running sum of positive Cash Extracted amounts.'],
+    ['Cumulative Interest', 'Running sum of yearly Interest Cost.'],
+    ['Net Cash', 'Total Cash Extracted - Cumulative Interest.'],
+    ['LTV (actual)', 'Outstanding loan ÷ BTC Collateral. If refinance fails, this uses carried debt rather than target LTV.'],
+    ['Equity', 'BTC Collateral - outstanding loan.'],
+    ['Margin Call Price', 'New Loan ÷ (Initial BTC Amount × 0.70).'],
+    ['Liquidation Price', 'New Loan ÷ (Initial BTC Amount × 0.80).']
+  ];
+
+  doc.autoTable({
+    startY: 26,
+    head: [['Field', 'Calculation']],
+    body: explanationRows,
+    theme: 'grid',
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
+    headStyles: { fillColor: [247, 147, 26], textColor: [17, 24, 39], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 45 },
+      1: { cellWidth: 130 }
+    }
+  });
+
+  doc.save(filename);
+}
+
+
+/* -------------------- EXPORT CSV -------------------- */
+function exportTableCSV(){
+  const table = document.querySelector('table');
+  if(!table){ return; }
+  const rows = Array.from(table.querySelectorAll('tr'));
+  const csv = rows.map(row=>{
+    const cells = Array.from(row.querySelectorAll('th,td'));
+    return cells.map(cell=>{
+      let text = cell.textContent.replace(/\u00A0/g,' ').trim();
+      if(text.includes('"') || text.includes(',') || text.includes('\n')){
+        text = '"' + text.replace(/"/g,'""') + '"';
+      }
+      return text;
+    }).join(',');
+  }).join('\n');
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  a.download = `bbb_projection_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* -------------------- RESET (acts like browser refresh) -------------------- */
+function resetCalculator(){
+  window.location.reload();
+}
+
+/* -------------------- MISC -------------------- */
+function toggleDetails(event){
+  event.preventDefault();
+  const d = document.getElementById('detailsContainer');
+  const link = event.target;
+  if (!d) return;
+  if (d.style.display === 'none'){ d.style.display = 'block'; link.textContent = 'Hide Info'; }
+  else { d.style.display = 'none'; link.textContent = 'More Info'; }
+}
+
+
+function applyTheme(theme){
+  const isDark = theme === 'dark';
+  document.body.classList.toggle('dark-mode', isDark);
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.textContent = isDark ? '☀️ Light mode' : '🌙 Dark mode';
+  try { localStorage.setItem('bbdTheme', theme); } catch(e) {}
+}
+
+function toggleTheme(){
+  const isDark = document.body.classList.contains('dark-mode');
+  applyTheme(isDark ? 'light' : 'dark');
+}
+
+/* -------------------- NEW: Compact landscape mode toggle -------------------- */
+function applyLandscapeCompactClass(){
+  const isCompactLandscape = window.matchMedia('(orientation: landscape) and (max-height: 480px)').matches;
+  document.documentElement.classList.toggle('landscape-compact', isCompactLandscape);
+  // Optional: re-render chart with proper height if already rendered
+}
+
+(function init(){
+  // DEFAULT THEME:
+  // Change 'light' to 'dark' below if you want the page to open in dark mode by default.
+  // Example: applyTheme('dark');
+  applyTheme('light');
+  const y = new Date().getUTCFullYear();
+  const startYearEl = document.getElementById('startYear');
+  startYearEl.value = y;
+  toggleMode();
+  const btn = document.getElementById('stressToggleBtn');
+  btn.textContent = 'Show Stress Test';
+  btn.setAttribute('aria-expanded','false');
+
+  applyLandscapeCompactClass();
+  window.addEventListener('orientationchange', applyLandscapeCompactClass, {passive:true});
+  window.addEventListener('resize', applyLandscapeCompactClass, {passive:true});
+})();
+</script>
 </body>
 </html>
