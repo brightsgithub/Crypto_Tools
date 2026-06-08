@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bitcoin FX Calculator</title>
+
+<style>
+:root{
+  --bg:#0d1117;
+  --card:#161b22;
+  --border:#30363d;
+  --text:#c9d1d9;
+  --muted:#8b949e;
+  --accent:#f7931a;
+  --green:#7ee787;
+  --white:#fff;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:24px;
+  background:
+    radial-gradient(circle at top left, rgba(247,147,26,.18), transparent 28rem),
+    radial-gradient(circle at bottom right, rgba(88,166,255,.12), transparent 26rem),
+    var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--text);
+}
+
+.card{
+  width:100%;
+  max-width:560px;
+  background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+  border:1px solid var(--border);
+  border-radius:28px;
+  padding:28px;
+  box-shadow:0 28px 80px rgba(0,0,0,.36);
+}
+
+.logo{
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:var(--accent);
+  color:#111;
+  font-size:2rem;
+  font-weight:900;
+  margin-bottom:18px;
+}
+
+h1{
+  margin:0 0 10px;
+  color:var(--white);
+  font-size:clamp(2rem,6vw,3rem);
+  letter-spacing:-0.05em;
+}
+
+.subtitle{
+  margin:0 0 24px;
+  color:var(--muted);
+}
+
+.field{
+  margin-bottom:18px;
+}
+
+label{
+  display:block;
+  margin-bottom:8px;
+  font-size:.9rem;
+  font-weight:700;
+}
+
+.input-row{
+  display:grid;
+  grid-template-columns:100px 1fr;
+  overflow:hidden;
+  border-radius:16px;
+  border:1px solid var(--border);
+  background:#0d1117;
+}
+
+select,
+input{
+  border:none;
+  outline:none;
+  background:transparent;
+  color:var(--white);
+  font:inherit;
+  width:100%;
+}
+
+select{
+  background:#1f2630;
+  border-right:1px solid var(--border);
+  padding:16px 14px;
+}
+
+input{
+  padding:16px;
+  font-size:1.05rem;
+}
+
+.result{
+  margin-top:24px;
+  padding:24px;
+  border-radius:22px;
+  text-align:center;
+  background:rgba(126,231,135,.08);
+  border:1px solid rgba(126,231,135,.28);
+}
+
+.result small{
+  display:block;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  margin-bottom:8px;
+}
+
+.output{
+  color:var(--green);
+  font-size:clamp(2rem,8vw,3.4rem);
+  font-weight:900;
+  letter-spacing:-0.06em;
+}
+
+.info{
+  margin-top:18px;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  color:var(--muted);
+  line-height:1.6;
+}
+
+.info strong{
+  color:var(--accent);
+}
+
+@media(max-width:560px){
+  body{
+    align-items:flex-start;
+    padding:14px;
+  }
+
+  .card{
+    padding:22px;
+  }
+
+  .input-row{
+    grid-template-columns:90px 1fr;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <div class="logo">₿</div>
+
+  <h1>Bitcoin FX Calculator</h1>
+
+  <p class="subtitle">
+    Calculate exactly how much BTC you receive when buying in a different currency.
+  </p>
+
+  <div class="field">
+    <label>Bitcoin Price</label>
+
+    <div class="input-row">
+      <select id="btcCurrency">
+        <option value="USD">$ USD</option>
+        <option value="GBP">£ GBP</option>
+      </select>
+
+      <input id="btcPrice" type="number" value="100000" step="0.01">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Your Investment</label>
+
+    <div class="input-row">
+      <select id="investmentCurrency">
+        <option value="GBP">£ GBP</option>
+        <option value="USD">$ USD</option>
+      </select>
+
+      <input id="investmentAmount" type="number" value="10000" step="0.01">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>GBP/USD Exchange Rate</label>
+
+    <div class="input-row">
+      <select disabled>
+        <option>FX</option>
+      </select>
+
+      <input id="exchangeRate" type="number" value="1.35" step="0.0001">
+    </div>
+  </div>
+
+  <div class="result">
+    <small>You Receive</small>
+    <div class="output" id="btcResult">0 BTC</div>
+  </div>
+
+  <div class="info" id="explanation"></div>
+
+</div>
+
+<script>
+
+const btcPriceInput = document.getElementById("btcPrice");
+const btcCurrency = document.getElementById("btcCurrency");
+
+const investmentAmount = document.getElementById("investmentAmount");
+const investmentCurrency = document.getElementById("investmentCurrency");
+
+const exchangeRateInput = document.getElementById("exchangeRate");
+
+const btcResult = document.getElementById("btcResult");
+const explanation = document.getElementById("explanation");
+
+function format(value, decimals = 2){
+  return Number(value).toLocaleString(undefined,{
+    minimumFractionDigits:0,
+    maximumFractionDigits:decimals
+  });
+}
+
+function calculate(){
+
+  let btcPrice = parseFloat(btcPriceInput.value);
+  let invest = parseFloat(investmentAmount.value);
+  let fx = parseFloat(exchangeRateInput.value);
+
+  if(!btcPrice || !invest || !fx){
+    btcResult.textContent = "0 BTC";
+    return;
+  }
+
+  const btcCurr = btcCurrency.value;
+  const investCurr = investmentCurrency.value;
+
+  let investConverted = invest;
+
+  // Convert investment into BTC pricing currency
+  if(investCurr !== btcCurr){
+
+    // GBP -> USD
+    if(investCurr === "GBP" && btcCurr === "USD"){
+      investConverted = invest * fx;
+    }
+
+    // USD -> GBP
+    if(investCurr === "USD" && btcCurr === "GBP"){
+      investConverted = invest / fx;
+    }
+  }
+
+  const btcAmount = investConverted / btcPrice;
+
+  btcResult.textContent = btcAmount.toFixed(8).replace(/0+$/,'').replace(/\.$/,'') + " BTC";
+
+  let explanationText = "";
+
+  if(investCurr !== btcCurr){
+
+    if(investCurr === "GBP" && btcCurr === "USD"){
+      explanationText =
+        "<strong>Conversion:</strong> £" + format(invest) +
+        " × " + fx +
+        " = $" + format(investConverted) +
+        "<br><br><strong>BTC Calculation:</strong> $" +
+        format(investConverted) +
+        " ÷ $" +
+        format(btcPrice) +
+        " = " +
+        btcAmount.toFixed(8) +
+        " BTC";
+    }
+
+    if(investCurr === "USD" && btcCurr === "GBP"){
+      explanationText =
+        "<strong>Conversion:</strong> $" + format(invest) +
+        " ÷ " + fx +
+        " = £" + format(investConverted) +
+        "<br><br><strong>BTC Calculation:</strong> £" +
+        format(investConverted) +
+        " ÷ £" +
+        format(btcPrice) +
+        " = " +
+        btcAmount.toFixed(8) +
+        " BTC";
+    }
+
+  } else {
+
+    explanationText =
+      "<strong>BTC Calculation:</strong> " +
+      (btcCurr === "USD" ? "$" : "£") +
+      format(invest) +
+      " ÷ " +
+      (btcCurr === "USD" ? "$" : "£") +
+      format(btcPrice) +
+      " = " +
+      btcAmount.toFixed(8) +
+      " BTC";
+  }
+
+  explanation.innerHTML = explanationText;
+}
+
+[
+  btcPriceInput,
+  btcCurrency,
+  investmentAmount,
+  investmentCurrency,
+  exchangeRateInput
+].forEach(el => {
+  el.addEventListener("input", calculate);
+  el.addEventListener("change", calculate);
+});
+
+calculate();
+
+</script>
+
+</body>
+</html>
